@@ -2,7 +2,11 @@
 
 package iouring
 
-import iouring_syscall "github.com/iceber/iouring-go/syscall"
+import (
+	"errors"
+
+	iouring_syscall "github.com/iceber/iouring-go/syscall"
+)
 
 func (iour *IOURing) SubmitLinkedRequest(requests []IORequest, ch chan<- *Result) error {
 	return iour.submitLinkedRequest(requests, ch, false)
@@ -13,6 +17,11 @@ func (iour *IOURing) SubmitHardlinkedRequest(requests []IORequest, ch chan<- *Re
 }
 
 func (iour *IOURing) submitLinkedRequest(requests []IORequest, ch chan<- *Result, hard bool) error {
+	// TODO(iceber): no length limit
+	if len(requests) > int(*iour.sq.entries) {
+		return errors.New("requests is too many")
+	}
+
 	flags := iouring_syscall.IOSQE_FLAGS_IO_LINK
 	if hard {
 		flags = iouring_syscall.IOSQE_FLAGS_IO_HARDLINK

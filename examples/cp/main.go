@@ -9,30 +9,35 @@ import (
 	"github.com/iceber/iouring-go"
 )
 
-var entries uint = 64
-var blockSize int64 = 32 * 1024
+const entries uint = 64
+const blockSize int64 = 32 * 1024
 
 func main() {
 	now := time.Now()
+
+	if len(os.Args) != 3 {
+		fmt.Printf("Usage: %s file1 file2\n", os.Args[0])
+		return
+	}
 
 	iour, err := iouring.New(entries)
 	if err != nil {
 		log.Fatalf("New IOURing Failed: %v", err)
 	}
 
-	infile, err := os.Open("./in")
+	src, err := os.Open(os.Args[1])
 	if err != nil {
 		log.Fatalf("Open in file failed: %v", err)
 	}
-	defer infile.Close()
+	defer src.Close()
 
-	outfile, err := os.Create("./out")
+	dest, err := os.Create(os.Args[2])
 	if err != nil {
 		log.Fatalf("Open in file failed: %v", err)
 	}
-	defer outfile.Close()
+	defer dest.Close()
 
-	stat, err := infile.Stat()
+	stat, err := src.Stat()
 	if err != nil {
 		panic(err)
 	}
@@ -54,7 +59,7 @@ func main() {
 		}
 
 		b := make([]byte, readSize)
-		readRequest := iouring.Pread(int(infile.Fd()), b, offset)
+		readRequest := iouring.Pread(int(src.Fd()), b, offset)
 		request := iouring.SetRequestInfo(readRequest, offset)
 		iorequests = append(iorequests, request)
 
@@ -76,7 +81,7 @@ func main() {
 		if result.Opcode() == iouring.IORING_OP_READ {
 			b, _ := result.GetRequestBuffer()
 			offset := result.GetRequestInfo().(uint64)
-			request := iouring.Pwrite(int(outfile.Fd()), *b, offset)
+			request := iouring.Pwrite(int(dest.Fd()), *b, offset)
 			if _, err := iour.SubmitRequest(request, ch); err != nil {
 				panic(err)
 			}
@@ -94,7 +99,7 @@ func main() {
 		}
 
 		b, _ := result.GetRequestBuffer()
-		readRequest := iouring.Pread(int(infile.Fd()), (*b)[:readSize], offset)
+		readRequest := iouring.Pread(int(src.Fd()), (*b)[:readSize], offset)
 		request := iouring.SetRequestInfo(readRequest, offset)
 		if _, err := iour.SubmitRequest(request, ch); err != nil {
 			panic(err)

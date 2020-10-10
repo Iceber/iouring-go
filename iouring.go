@@ -94,6 +94,11 @@ func (iour *IOURing) SubmitRequest(request IORequest, ch chan<- *Result) (uint64
 
 // SubmitRequests by IORequest functions and io results are notified via channel
 func (iour *IOURing) SubmitRequests(requests []IORequest, ch chan<- *Result) error {
+	// TODO(iceber): no length limit
+	if len(requests) > int(*iour.sq.entries) {
+		return errors.New("requests is too many")
+	}
+
 	iour.submitLock.Lock()
 	defer iour.submitLock.Unlock()
 
