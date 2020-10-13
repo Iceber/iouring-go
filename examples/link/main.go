@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/iceber/iouring-go"
@@ -18,7 +17,7 @@ var (
 func main() {
 	iour, err := iouring.New(entries)
 	if err != nil {
-		log.Fatalf("New IOURing Failed: %v", err)
+		panic(fmt.Sprintf("new IOURing error: %v", err))
 	}
 
 	file, err := os.Create("./tmp")
@@ -26,15 +25,15 @@ func main() {
 		panic(err)
 	}
 
-	writeRequest1 := iouring.SetRequestInfo(iouring.Write(int(file.Fd()), []byte(str1)), "write str1")
-	writeRequest2 := iouring.SetRequestInfo(iouring.Pwrite(int(file.Fd()), []byte(str2), uint64(len(str1))), "write str2")
+	writeRequest1 := iouring.RequestWithInfo(iouring.Write(int(file.Fd()), []byte(str1)), "write str1")
+	writeRequest2 := iouring.RequestWithInfo(iouring.Pwrite(int(file.Fd()), []byte(str2), uint64(len(str1))), "write str2")
 
 	buffer := make([]byte, len(str1)+len(str2))
-	readRequest1 := iouring.SetRequestInfo(iouring.Read(int(file.Fd()), buffer), "read fd to buffer")
-	readRequest2 := iouring.SetRequestInfo(iouring.Write(int(os.Stdout.Fd()), buffer), "read buffer to stdout")
+	readRequest1 := iouring.RequestWithInfo(iouring.Read(int(file.Fd()), buffer), "read fd to buffer")
+	readRequest2 := iouring.RequestWithInfo(iouring.Write(int(os.Stdout.Fd()), buffer), "read buffer to stdout")
 
 	ch := make(chan *iouring.Result, 4)
-	err = iour.SubmitLinkedRequest(
+	err = iour.SubmitLinkRequests(
 		[]iouring.IORequest{
 			writeRequest1,
 			writeRequest2,

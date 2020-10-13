@@ -16,6 +16,14 @@ const (
 	IOURING_TIMEOUT_WITH_CQE_COUNT = 1
 )
 
+func RequestWithTimeout(request IORequest, timeout time.Duration) []IORequest {
+	linkRequest := func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
+		request(sqe, userData)
+		sqe.SetFlags(iouring_syscall.IOSQE_FLAGS_IO_LINK)
+	}
+	return []IORequest{linkRequest, linkTimeout(timeout)}
+}
+
 func Timeout(t time.Duration) IORequest {
 	timespec := unix.NsecToTimespec(t.Nanoseconds())
 

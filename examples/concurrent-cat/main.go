@@ -77,7 +77,7 @@ func read(iour *iouring.IOURing, file *os.File, ch chan *iouring.Result) error {
 		buffers[blocks-1] = buffers[blocks-1][:size%blockSize]
 	}
 
-	request := iouring.SetRequestInfo(iouring.Readv(int(file.Fd()), buffers), file.Name())
+	request := iouring.RequestWithInfo(iouring.Readv(int(file.Fd()), buffers), file.Name())
 	_, err = iour.SubmitRequest(request, ch)
 	return err
 }

@@ -34,7 +34,6 @@ func readAndPrint(iour *iouring.IOURing, file *os.File) error {
 		return err
 	}
 	size := stat.Size()
-
 	buffers := getBuffers(size)
 
 	compCh := make(chan *iouring.Result, 1)

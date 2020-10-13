@@ -99,6 +99,7 @@ type SubmissionQueueEntry struct {
 func (sqe *SubmissionQueueEntry) Opcode() uint8 {
 	return sqe.opcode
 }
+
 func (sqe *SubmissionQueueEntry) Reset() {
 	buf := (*[sqeSize]byte)(unsafe.Pointer(sqe))
 	copy(buf[:], empty[:])
@@ -128,21 +129,31 @@ func (sqe *SubmissionQueueEntry) SetOpFlags(opflags uint32) {
 func (sqe *SubmissionQueueEntry) SetUserData(userData uint64) {
 	sqe.userdata = userData
 }
+
 func (sqe *SubmissionQueueEntry) SetFlags(flags uint8) {
 	sqe.flags |= flags
 }
+
+func (sqe *SubmissionQueueEntry) CleanFlags(flags uint8) {
+	sqe.flags ^= flags
+}
+
 func (sqe *SubmissionQueueEntry) SetIoprio(ioprio uint16) {
 	sqe.ioprio = ioprio
 }
+
 func (sqe *SubmissionQueueEntry) SetBufIndex(bufIndex uint16) {
 	sqe.bufIndexOrGroup = bufIndex
 }
+
 func (sqe *SubmissionQueueEntry) SetBufGroup(bufGroup uint16) {
 	sqe.bufIndexOrGroup = bufGroup
 }
+
 func (sqe *SubmissionQueueEntry) SetPeronality(personality uint16) {
 	sqe.personality = personality
 }
+
 func (sqe *SubmissionQueueEntry) SetSpliceFdIn(fdIn int32) {
 	sqe.spliceFdIn = fdIn
 }

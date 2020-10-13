@@ -110,6 +110,7 @@ func fdResolver(result *Result) {
 
 func timeoutResolver(result *Result) {
 	if errResolver(result); result.err != nil {
+		// timeout completion
 		if result.err == syscall.ETIME {
 			result.err = nil
 			result.r0 = IOURING_TIMEOUT

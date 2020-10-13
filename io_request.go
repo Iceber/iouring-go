@@ -51,7 +51,7 @@ func (iour *IOURing) Pwrite(file *os.File, b []byte, offset uint64, ch chan<- *R
 	return iour.SubmitRequest(Pwrite(fd, b, offset), ch)
 }
 
-func SetRequestInfo(request IORequest, info interface{}) IORequest {
+func RequestWithInfo(request IORequest, info interface{}) IORequest {
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		request(sqe, userData)
 		userData.SetRequestInfo(info)

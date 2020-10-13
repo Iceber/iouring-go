@@ -31,7 +31,7 @@ type IOURingFilesUpdate struct {
 
 func IOURingRegister(fd int, opcode uint8, args unsafe.Pointer, nrArgs uint32) error {
 	_, _, errno := syscall.Syscall6(
-		SYS_IO_URING_ENTER,
+		SYS_IO_URING_REGISTER,
 		uintptr(fd),
 		uintptr(opcode),
 		uintptr(args),

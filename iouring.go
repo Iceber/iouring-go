@@ -5,6 +5,7 @@ package iouring
 import (
 	"errors"
 	"log"
+	"runtime"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -72,7 +73,35 @@ func (iour *IOURing) getSQEntry() *iouring_syscall.SubmissionQueueEntry {
 		if sqe != nil {
 			return sqe
 		}
+		runtime.Gosched()
 	}
+}
+
+func (iour *IOURing) doRequest(sqe *iouring_syscall.SubmissionQueueEntry, request IORequest, ch chan<- *Result) (id uint64, err error) {
+	// TODO(iceber): use sync.Poll
+	userData := makeUserData(ch)
+
+	request(sqe, userData)
+	userData.setOpcode(sqe.Opcode())
+
+	id = uint64(uintptr(unsafe.Pointer(userData)))
+	iour.userDataLock.Lock()
+	iour.userDatas[id] = userData
+	iour.userDataLock.Unlock()
+	sqe.SetUserData(id)
+
+	if sqe.Fd() >= 0 {
+		if index, ok := iour.fileRegister.GetFileIndex(int32(sqe.Fd())); ok {
+			sqe.SetFdIndex(int32(index))
+		} else if iour.Flags&iouring_syscall.IORING_SETUP_FLAGS_SQPOLL != 0 {
+			return 0, errors.New("fd is not registered")
+		}
+	}
+
+	if iour.async {
+		sqe.SetFlags(iouring_syscall.IOSQE_FLAGS_ASYNC)
+	}
+	return
 }
 
 // SubmitRequest by IORequest function and io result is notified via channel
@@ -116,12 +145,6 @@ func (iour *IOURing) SubmitRequests(requests []IORequest, ch chan<- *Result) err
 	return err
 }
 
-// CancelRequest by request id
-func (iour *IOURing) CancelRequest(id uint64, ch chan<- *Result) error {
-	_, err := iour.SubmitRequest(cancel(id), ch)
-	return err
-}
-
 func (iour *IOURing) needEnter(flags *uint32) bool {
 	if (iour.Flags & iouring_syscall.IORING_SETUP_FLAGS_SQPOLL) == 0 {
 		return true
@@ -132,22 +155,6 @@ func (iour *IOURing) needEnter(flags *uint32) bool {
 		return true
 	}
 	return false
-}
-
-func (iour *IOURing) submitAndWait(waitCount uint32) (submitted int, err error) {
-	submitted = iour.sq.flush()
-
-	var flags uint32
-	if !iour.needEnter(&flags) && waitCount == 0 {
-		return
-	}
-
-	if waitCount != 0 || (iour.Flags&iouring_syscall.IORING_SETUP_FLAGS_IOPOLL) != 0 {
-		flags |= iouring_syscall.IORING_ENTER_FLAGS_GETEVENTS
-	}
-
-	submitted, err = iouring_syscall.IOURingEnter(iour.fd, uint32(submitted), waitCount, flags, nil)
-	return
 }
 
 func (iour *IOURing) submit() (submitted int, err error) {
@@ -166,28 +173,26 @@ func (iour *IOURing) submit() (submitted int, err error) {
 	return
 }
 
-func (iour *IOURing) doRequest(sqe *iouring_syscall.SubmissionQueueEntry, request IORequest, ch chan<- *Result) (id uint64, err error) {
-	userData := makeUserData(ch)
+func (iour *IOURing) submitAndWait(waitCount uint32) (submitted int, err error) {
+	submitted = iour.sq.flush()
 
-	request(sqe, userData)
-	userData.setOpcode(sqe.Opcode())
-
-	id = uint64(uintptr(unsafe.Pointer(userData)))
-	iour.userDatas[id] = userData
-	sqe.SetUserData(id)
-
-	if sqe.Fd() >= 0 {
-		if index, ok := iour.fileRegister.GetFileIndex(int32(sqe.Fd())); ok {
-			sqe.SetFdIndex(int32(index))
-		} else if (iour.Flags & iouring_syscall.IORING_SETUP_FLAGS_SQPOLL) == 1 {
-			return 0, errors.New("fd is not registered")
-		}
+	var flags uint32
+	if !iour.needEnter(&flags) && waitCount == 0 {
+		return
 	}
 
-	if iour.async {
-		sqe.SetFlags(iouring_syscall.IOSQE_FLAGS_ASYNC)
+	if waitCount != 0 || (iour.Flags&iouring_syscall.IORING_SETUP_FLAGS_IOPOLL) != 0 {
+		flags |= iouring_syscall.IORING_ENTER_FLAGS_GETEVENTS
 	}
+
+	submitted, err = iouring_syscall.IOURingEnter(iour.fd, uint32(submitted), waitCount, flags, nil)
 	return
+}
+
+// CancelRequest by request id
+func (iour *IOURing) CancelRequest(id uint64, ch chan<- *Result) error {
+	_, err := iour.SubmitRequest(cancel(id), ch)
+	return err
 }
 
 func (iour *IOURing) getCQEvent(wait bool) (cqe *iouring_syscall.CompletionQueueEvent, err error) {
@@ -219,15 +224,26 @@ func (iour *IOURing) run() {
 
 		log.Println("cqe user data", (cqe.UserData))
 
+		iour.userDataLock.Lock()
 		userData := iour.userDatas[cqe.UserData]
 		if userData == nil {
+			iour.userDataLock.Unlock()
 			log.Println("runComplete: notfound user data ", uintptr(cqe.UserData))
 			continue
 		}
 		delete(iour.userDatas, cqe.UserData)
+		iour.userDataLock.Unlock()
+
+		// ignore link timeout
+		if userData.opcode == iouring_syscall.IORING_OP_LINK_TIMEOUT {
+			continue
+		}
+
 		userData.result.load(cqe)
 
-		userData.done <- userData.result
+		if userData.done != nil {
+			userData.done <- userData.result
+		}
 	}
 }
 

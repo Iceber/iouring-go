@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"time"
 
@@ -22,18 +21,20 @@ func main() {
 
 	iour, err := iouring.New(entries)
 	if err != nil {
-		log.Fatalf("New IOURing Failed: %v", err)
+		panic(fmt.Sprintf("new IOURing error: %v", err))
 	}
 
 	src, err := os.Open(os.Args[1])
 	if err != nil {
-		log.Fatalf("Open in file failed: %v", err)
+		fmt.Printf("Open src file failed: %v\n", err)
+		return
 	}
 	defer src.Close()
 
 	dest, err := os.Create(os.Args[2])
 	if err != nil {
-		log.Fatalf("Open in file failed: %v", err)
+		fmt.Printf("create dest file failed: %v\n", err)
+		return
 	}
 	defer dest.Close()
 
@@ -60,7 +61,7 @@ func main() {
 
 		b := make([]byte, readSize)
 		readRequest := iouring.Pread(int(src.Fd()), b, offset)
-		request := iouring.SetRequestInfo(readRequest, offset)
+		request := iouring.RequestWithInfo(readRequest, offset)
 		iorequests = append(iorequests, request)
 
 		size -= readSize
@@ -100,7 +101,7 @@ func main() {
 
 		b, _ := result.GetRequestBuffer()
 		readRequest := iouring.Pread(int(src.Fd()), (*b)[:readSize], offset)
-		request := iouring.SetRequestInfo(readRequest, offset)
+		request := iouring.RequestWithInfo(readRequest, offset)
 		if _, err := iour.SubmitRequest(request, ch); err != nil {
 			panic(err)
 		}

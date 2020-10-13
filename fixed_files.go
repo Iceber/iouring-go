@@ -76,8 +76,12 @@ func (register *fileRegister) GetFileIndex(fd int32) (int, bool) {
 }
 
 func (register *fileRegister) register() error {
-	fp := unsafe.Pointer(&register.fds[0])
-	if err := iouring_syscall.IOURingRegister(register.iouringFd, iouring_syscall.IORING_REGISTER_FILES, fp, uint32(len(register.fds))); err != nil {
+	if err := iouring_syscall.IOURingRegister(
+		register.iouringFd,
+		iouring_syscall.IORING_REGISTER_FILES,
+		unsafe.Pointer(&register.fds[0]),
+		uint32(len(register.fds)),
+	); err != nil {
 		return err
 	}
 
@@ -148,7 +152,9 @@ func (register *fileRegister) RegisterFiles(fds []int32) error {
 	register.fds = append(register.fds, fds[fdi:]...)
 
 update:
-	register.fresh(0, len(register.fds))
+	if err := register.fresh(0, len(register.fds)); err != nil {
+		return err
+	}
 
 	for i, spares := range updatedSpares {
 		if spares > 0 {
@@ -214,8 +220,7 @@ func (register *fileRegister) UnregisterFile(fd int32) error {
 		return nil
 	}
 
-	register.fresh(fdi, 1)
-	return nil
+	return register.fresh(fdi, 1)
 }
 
 func (register *fileRegister) UnregisterFiles(fds []int32) error {
@@ -273,8 +278,10 @@ func (register *fileRegister) fresh(offset int, length int) error {
 		Offset: uint32(offset),
 		Fds:    &register.fds[offset],
 	}
-	if err := iouring_syscall.IOURingRegister(register.iouringFd, iouring_syscall.IORING_REGISTER_FILES_UPDATE, unsafe.Pointer(&update), uint32(len(register.fds))); err != nil {
-		return err
-	}
-	return nil
+	return iouring_syscall.IOURingRegister(
+		register.iouringFd,
+		iouring_syscall.IORING_REGISTER_FILES_UPDATE,
+		unsafe.Pointer(&update),
+		uint32(len(register.fds)),
+	)
 }
