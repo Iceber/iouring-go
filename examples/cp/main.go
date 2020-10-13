@@ -38,6 +38,10 @@ func main() {
 	}
 	defer dest.Close()
 
+	if err := iour.RegisterFiles([]*os.File{src, dest}); err != nil {
+		panic(err)
+	}
+
 	stat, err := src.Stat()
 	if err != nil {
 		panic(err)

@@ -11,14 +11,6 @@ import (
 	iouring_syscall "github.com/iceber/iouring-go/syscall"
 )
 
-type FileRegister interface {
-	GetFileIndex(fd int32) (int, bool)
-	RegisterFile(fd int32) error
-	RegisterFiles(fds []int32) error
-	UnregisterFile(fd int32) error
-	UnregisterFiles(fds []int32) error
-}
-
 func (iour *IOURing) FileRegister() FileRegister {
 	return iour.fileRegister
 }
@@ -51,6 +43,14 @@ func (iour *IOURing) UnregisterFiles(files []*os.File) error {
 
 func (iour *IOURing) GetFixedFileIndex(file *os.File) (int, bool) {
 	return iour.fileRegister.GetFileIndex(int32(file.Fd()))
+}
+
+type FileRegister interface {
+	GetFileIndex(fd int32) (int, bool)
+	RegisterFile(fd int32) error
+	RegisterFiles(fds []int32) error
+	UnregisterFile(fd int32) error
+	UnregisterFiles(fds []int32) error
 }
 
 type fileRegister struct {
@@ -183,6 +183,11 @@ func (register *fileRegister) RegisterFile(fd int32) error {
 
 	register.lock.Lock()
 	defer register.lock.Unlock()
+
+	if len(register.indexs) == 0 {
+		register.fds = []int32{fd}
+		return register.register()
+	}
 
 	var fdi int
 	var spares int

@@ -7,6 +7,7 @@ import (
 	"log"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"unsafe"
 
@@ -26,6 +27,8 @@ type IOURing struct {
 	Flags uint32
 
 	submitLock sync.Mutex
+	submits    int64
+	submitSign chan struct{}
 
 	userDataLock sync.RWMutex
 	userDatas    map[uint64]*UserData
@@ -36,8 +39,9 @@ type IOURing struct {
 // New return a IOURing instance by IOURingOptions
 func New(entries uint, opts ...IOURingOption) (iour *IOURing, err error) {
 	iour = &IOURing{
-		params:    &iouring_syscall.IOURingParams{},
-		userDatas: make(map[uint64]*UserData),
+		params:     &iouring_syscall.IOURingParams{},
+		userDatas:  make(map[uint64]*UserData),
+		submitSign: make(chan struct{}, 1),
 	}
 
 	for _, opt := range opts {
@@ -159,6 +163,17 @@ func (iour *IOURing) needEnter(flags *uint32) bool {
 
 func (iour *IOURing) submit() (submitted int, err error) {
 	submitted = iour.sq.flush()
+	defer func() {
+		if err != nil {
+			return
+		}
+		atomic.AddInt64(&iour.submits, int64(submitted))
+
+		select {
+		case iour.submitSign <- struct{}{}:
+		default:
+		}
+	}()
 
 	var flags uint32
 	if !iour.needEnter(&flags) || submitted == 0 {
@@ -173,6 +188,7 @@ func (iour *IOURing) submit() (submitted int, err error) {
 	return
 }
 
+/*
 func (iour *IOURing) submitAndWait(waitCount uint32) (submitted int, err error) {
 	submitted = iour.sq.flush()
 
@@ -188,10 +204,11 @@ func (iour *IOURing) submitAndWait(waitCount uint32) (submitted int, err error) 
 	submitted, err = iouring_syscall.IOURingEnter(iour.fd, uint32(submitted), waitCount, flags, nil)
 	return
 }
+*/
 
 // CancelRequest by request id
 func (iour *IOURing) CancelRequest(id uint64, ch chan<- *Result) error {
-	_, err := iour.SubmitRequest(cancel(id), ch)
+	_, err := iour.SubmitRequest(cancelRequest(id), ch)
 	return err
 }
 
@@ -207,22 +224,32 @@ func (iour *IOURing) getCQEvent(wait bool) (cqe *iouring_syscall.CompletionQueue
 			return
 		}
 
-		_, err = iouring_syscall.IOURingEnter(iour.fd, 0, 1, iouring_syscall.IORING_ENTER_FLAGS_GETEVENTS, nil)
-		if err != nil {
-			return
-		}
+		runtime.Gosched()
+
+		/*
+			_, err = iouring_syscall.IOURingEnter(iour.fd, 0, 1, iouring_syscall.IORING_ENTER_FLAGS_GETEVENTS, nil)
+			if err != nil {
+				return
+			}
+		*/
 	}
 }
 
 func (iour *IOURing) run() {
 	for {
+		if atomic.LoadInt64(&iour.submits) <= 0 {
+			<-iour.submitSign
+			continue
+		}
+
 		cqe, err := iour.getCQEvent(true)
 		if cqe == nil || err != nil {
 			log.Println("runComplete error: ", err)
 			continue
 		}
+		atomic.AddInt64(&iour.submits, -1)
 
-		log.Println("cqe user data", (cqe.UserData))
+		// log.Println("cqe user data", (cqe.UserData))
 
 		iour.userDataLock.Lock()
 		userData := iour.userDatas[cqe.UserData]
@@ -247,7 +274,7 @@ func (iour *IOURing) run() {
 	}
 }
 
-func cancel(id uint64) Request {
+func cancelRequest(id uint64) Request {
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		userData.result.resolver = cancelResolver
 		sqe.PrepOperation(iouring_syscall.IORING_OP_ASYNC_CANCEL, -1, id, 0, 0)
