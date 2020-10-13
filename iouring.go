@@ -77,7 +77,7 @@ func (iour *IOURing) getSQEntry() *iouring_syscall.SubmissionQueueEntry {
 	}
 }
 
-func (iour *IOURing) doRequest(sqe *iouring_syscall.SubmissionQueueEntry, request IORequest, ch chan<- *Result) (id uint64, err error) {
+func (iour *IOURing) doRequest(sqe *iouring_syscall.SubmissionQueueEntry, request Request, ch chan<- *Result) (id uint64, err error) {
 	// TODO(iceber): use sync.Poll
 	userData := makeUserData(ch)
 
@@ -104,9 +104,9 @@ func (iour *IOURing) doRequest(sqe *iouring_syscall.SubmissionQueueEntry, reques
 	return
 }
 
-// SubmitRequest by IORequest function and io result is notified via channel
+// SubmitRequest by Request function and io result is notified via channel
 // return request id, can be used to cancel a request
-func (iour *IOURing) SubmitRequest(request IORequest, ch chan<- *Result) (uint64, error) {
+func (iour *IOURing) SubmitRequest(request Request, ch chan<- *Result) (uint64, error) {
 	iour.submitLock.Lock()
 	defer iour.submitLock.Unlock()
 
@@ -121,8 +121,8 @@ func (iour *IOURing) SubmitRequest(request IORequest, ch chan<- *Result) (uint64
 	return id, err
 }
 
-// SubmitRequests by IORequest functions and io results are notified via channel
-func (iour *IOURing) SubmitRequests(requests []IORequest, ch chan<- *Result) error {
+// SubmitRequests by Request functions and io results are notified via channel
+func (iour *IOURing) SubmitRequests(requests []Request, ch chan<- *Result) error {
 	// TODO(iceber): no length limit
 	if len(requests) > int(*iour.sq.entries) {
 		return errors.New("requests is too many")
@@ -247,7 +247,7 @@ func (iour *IOURing) run() {
 	}
 }
 
-func cancel(id uint64) IORequest {
+func cancel(id uint64) Request {
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		userData.result.resolver = cancelResolver
 		sqe.PrepOperation(iouring_syscall.IORING_OP_ASYNC_CANCEL, -1, id, 0, 0)

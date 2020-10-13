@@ -11,15 +11,15 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func (iour *IOURing) SubmitLinkRequests(requests []IORequest, ch chan<- *Result) error {
+func (iour *IOURing) SubmitLinkRequests(requests []Request, ch chan<- *Result) error {
 	return iour.submitLinkRequest(requests, ch, false)
 }
 
-func (iour *IOURing) SubmitHardLinkRequests(requests []IORequest, ch chan<- *Result) error {
+func (iour *IOURing) SubmitHardLinkRequests(requests []Request, ch chan<- *Result) error {
 	return iour.submitLinkRequest(requests, ch, true)
 }
 
-func (iour *IOURing) submitLinkRequest(requests []IORequest, ch chan<- *Result, hard bool) error {
+func (iour *IOURing) submitLinkRequest(requests []Request, ch chan<- *Result, hard bool) error {
 	// TODO(iceber): no length limit
 	if len(requests) > int(*iour.sq.entries) {
 		return errors.New("requests is too many")
@@ -53,7 +53,7 @@ func (iour *IOURing) submitLinkRequest(requests []IORequest, ch chan<- *Result, 
 	return err
 }
 
-func linkTimeout(t time.Duration) IORequest {
+func linkTimeout(t time.Duration) Request {
 	timespec := unix.NsecToTimespec(t.Nanoseconds())
 
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {

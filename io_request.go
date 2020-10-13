@@ -13,7 +13,7 @@ import (
 	iouring_syscall "github.com/iceber/iouring-go/syscall"
 )
 
-type IORequest func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData)
+type Request func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData)
 
 func (iour *IOURing) Read(file *os.File, b []byte, ch chan<- *Result) (uint64, error) {
 	fd := int(file.Fd())
@@ -51,20 +51,20 @@ func (iour *IOURing) Pwrite(file *os.File, b []byte, offset uint64, ch chan<- *R
 	return iour.SubmitRequest(Pwrite(fd, b, offset), ch)
 }
 
-func RequestWithInfo(request IORequest, info interface{}) IORequest {
+func RequestWithInfo(request Request, info interface{}) Request {
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		request(sqe, userData)
 		userData.SetRequestInfo(info)
 	}
 }
 
-func Nop() IORequest {
+func Nop() Request {
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		sqe.PrepOperation(iouring_syscall.IORING_OP_NOP, -1, 0, 0, 0)
 	}
 }
 
-func Read(fd int, b []byte) IORequest {
+func Read(fd int, b []byte) Request {
 	var bp unsafe.Pointer
 	if len(b) > 0 {
 		bp = unsafe.Pointer(&b[0])
@@ -86,7 +86,7 @@ func Read(fd int, b []byte) IORequest {
 	}
 }
 
-func Pread(fd int, b []byte, offset uint64) IORequest {
+func Pread(fd int, b []byte, offset uint64) Request {
 	var bp unsafe.Pointer
 	if len(b) > 0 {
 		bp = unsafe.Pointer(&b[0])
@@ -108,7 +108,7 @@ func Pread(fd int, b []byte, offset uint64) IORequest {
 	}
 }
 
-func Write(fd int, b []byte) IORequest {
+func Write(fd int, b []byte) Request {
 	var bp unsafe.Pointer
 	if len(b) > 0 {
 		bp = unsafe.Pointer(&b[0])
@@ -130,7 +130,7 @@ func Write(fd int, b []byte) IORequest {
 	}
 }
 
-func Pwrite(fd int, b []byte, offset uint64) IORequest {
+func Pwrite(fd int, b []byte, offset uint64) Request {
 	var bp unsafe.Pointer
 	if len(b) > 0 {
 		bp = unsafe.Pointer(&b[0])
@@ -152,7 +152,7 @@ func Pwrite(fd int, b []byte, offset uint64) IORequest {
 	}
 }
 
-func Readv(fd int, bs [][]byte) IORequest {
+func Readv(fd int, bs [][]byte) Request {
 	iovecs := bytes2iovec(bs)
 
 	var bp unsafe.Pointer
@@ -176,7 +176,7 @@ func Readv(fd int, bs [][]byte) IORequest {
 	}
 }
 
-func Preadv(fd int, bs [][]byte, offset uint64) IORequest {
+func Preadv(fd int, bs [][]byte, offset uint64) Request {
 	iovecs := bytes2iovec(bs)
 
 	var bp unsafe.Pointer
@@ -199,7 +199,7 @@ func Preadv(fd int, bs [][]byte, offset uint64) IORequest {
 	}
 }
 
-func Writev(fd int, bs [][]byte) IORequest {
+func Writev(fd int, bs [][]byte) Request {
 	iovecs := bytes2iovec(bs)
 
 	var bp unsafe.Pointer
@@ -223,7 +223,7 @@ func Writev(fd int, bs [][]byte) IORequest {
 	}
 }
 
-func Pwritev(fd int, bs [][]byte, offset int64) IORequest {
+func Pwritev(fd int, bs [][]byte, offset int64) Request {
 	iovecs := bytes2iovec(bs)
 
 	var bp unsafe.Pointer
@@ -247,7 +247,7 @@ func Pwritev(fd int, bs [][]byte, offset int64) IORequest {
 	}
 }
 
-func Send(sockfd int, b []byte, flags int) IORequest {
+func Send(sockfd int, b []byte, flags int) Request {
 	var bp unsafe.Pointer
 	if len(b) > 0 {
 		bp = unsafe.Pointer(&b[0])
@@ -269,7 +269,7 @@ func Send(sockfd int, b []byte, flags int) IORequest {
 	}
 }
 
-func Recv(sockfd int, b []byte, flags int) IORequest {
+func Recv(sockfd int, b []byte, flags int) Request {
 	var bp unsafe.Pointer
 	if len(b) > 0 {
 		bp = unsafe.Pointer(&b[0])
@@ -291,7 +291,7 @@ func Recv(sockfd int, b []byte, flags int) IORequest {
 	}
 }
 
-func Sendmsg(sockfd int, p, oob []byte, to syscall.Sockaddr, flags int) (IORequest, error) {
+func Sendmsg(sockfd int, p, oob []byte, to syscall.Sockaddr, flags int) (Request, error) {
 	var ptr unsafe.Pointer
 	var salen uint32
 	if to != nil {
@@ -353,7 +353,7 @@ func Sendmsg(sockfd int, p, oob []byte, to syscall.Sockaddr, flags int) (IOReque
 	}, nil
 }
 
-func Recvmsg(sockfd int, p, oob []byte, to syscall.Sockaddr, flags int) (IORequest, error) {
+func Recvmsg(sockfd int, p, oob []byte, to syscall.Sockaddr, flags int) (Request, error) {
 	var msg syscall.Msghdr
 	var rsa syscall.RawSockaddrAny
 	msg.Name = (*byte)(unsafe.Pointer(&rsa))
@@ -411,7 +411,7 @@ func Recvmsg(sockfd int, p, oob []byte, to syscall.Sockaddr, flags int) (IOReque
 	}, nil
 }
 
-func Accept(sockfd int) IORequest {
+func Accept(sockfd int) Request {
 	var rsa syscall.RawSockaddrAny
 	var len uint32 = syscall.SizeofSockaddrAny
 
@@ -437,7 +437,7 @@ func Accept(sockfd int) IORequest {
 	}
 }
 
-func Accept4(sockfd int, flags int) IORequest {
+func Accept4(sockfd int, flags int) Request {
 	var rsa syscall.RawSockaddrAny
 	var len uint32 = syscall.SizeofSockaddrAny
 
@@ -474,7 +474,7 @@ func Accept4(sockfd int, flags int) IORequest {
 	}
 }
 
-func Connect(sockfd int, sa syscall.Sockaddr) (IORequest, error) {
+func Connect(sockfd int, sa syscall.Sockaddr) (Request, error) {
 	ptr, n, err := sockaddr(sa)
 	if err != nil {
 		return nil, err
@@ -494,7 +494,7 @@ func Connect(sockfd int, sa syscall.Sockaddr) (IORequest, error) {
 	}, nil
 }
 
-func Openat(dirfd int, path string, flags uint32, mode uint32) (IORequest, error) {
+func Openat(dirfd int, path string, flags uint32, mode uint32) (Request, error) {
 	flags |= syscall.O_LARGEFILE
 	b, err := syscall.ByteSliceFromString(path)
 	if err != nil {
@@ -517,7 +517,7 @@ func Openat(dirfd int, path string, flags uint32, mode uint32) (IORequest, error
 	}, nil
 }
 
-func Openat2(dirfd int, path string, how *unix.OpenHow) (IORequest, error) {
+func Openat2(dirfd int, path string, how *unix.OpenHow) (Request, error) {
 	b, err := syscall.ByteSliceFromString(path)
 	if err != nil {
 		return nil, err
@@ -538,7 +538,7 @@ func Openat2(dirfd int, path string, how *unix.OpenHow) (IORequest, error) {
 	}, nil
 }
 
-func Statx(dirfd int, path string, flags uint32, mask int, stat *unix.Statx_t) (IORequest, error) {
+func Statx(dirfd int, path string, flags uint32, mask int, stat *unix.Statx_t) (Request, error) {
 	b, err := syscall.ByteSliceFromString(path)
 	if err != nil {
 		return nil, err
@@ -560,14 +560,14 @@ func Statx(dirfd int, path string, flags uint32, mask int, stat *unix.Statx_t) (
 	}, nil
 }
 
-func Fsync(fd int) IORequest {
+func Fsync(fd int) Request {
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		userData.result.resolver = errResolver
 		sqe.PrepOperation(iouring_syscall.IORING_OP_FSYNC, int32(fd), 0, 0, 0)
 	}
 }
 
-func Fdatasync(fd int) IORequest {
+func Fdatasync(fd int) Request {
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		userData.result.resolver = errResolver
 		sqe.PrepOperation(iouring_syscall.IORING_OP_FSYNC, int32(fd), 0, 0, 0)
@@ -575,7 +575,7 @@ func Fdatasync(fd int) IORequest {
 	}
 }
 
-func Fallocate(fd int, mode uint32, off int64, length int64) IORequest {
+func Fallocate(fd int, mode uint32, off int64, length int64) Request {
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		userData.result.resolver = errResolver
 
@@ -589,14 +589,14 @@ func Fallocate(fd int, mode uint32, off int64, length int64) IORequest {
 	}
 }
 
-func Close(fd int) IORequest {
+func Close(fd int) Request {
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		userData.result.resolver = errResolver
 		sqe.PrepOperation(iouring_syscall.IORING_OP_CLOSE, int32(fd), 0, 0, 0)
 	}
 }
 
-func Madvise(b []byte, advice int) IORequest {
+func Madvise(b []byte, advice int) Request {
 	var bp unsafe.Pointer
 	if len(b) > 0 {
 		bp = unsafe.Pointer(&b[0])
@@ -618,7 +618,7 @@ func Madvise(b []byte, advice int) IORequest {
 	}
 }
 
-func EpollCtl(epfd int, op int, fd int, event *syscall.EpollEvent) IORequest {
+func EpollCtl(epfd int, op int, fd int, event *syscall.EpollEvent) Request {
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		userData.result.resolver = errResolver
 

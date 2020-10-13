@@ -17,7 +17,7 @@ func main() {
 	request2 := iouring.Timeout(2 * time.Second)
 	request1 := iouring.Timeout(5 * time.Second)
 	ch := make(chan *iouring.Result, 1)
-	if err := iour.SubmitRequests([]iouring.IORequest{request1, request2}, ch); err != nil {
+	if err := iour.SubmitRequests([]iouring.Request{request1, request2}, ch); err != nil {
 		panic(err)
 	}
 

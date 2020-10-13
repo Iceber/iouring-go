@@ -34,7 +34,7 @@ func main() {
 
 	ch := make(chan *iouring.Result, 4)
 	err = iour.SubmitLinkRequests(
-		[]iouring.IORequest{
+		[]iouring.Request{
 			writeRequest1,
 			writeRequest2,
 			readRequest1,

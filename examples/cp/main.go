@@ -49,7 +49,7 @@ func main() {
 	var offset uint64
 
 	ch := make(chan *iouring.Result, entries)
-	iorequests := make([]iouring.IORequest, 0, entries)
+	iorequests := make([]iouring.Request, 0, entries)
 	for size > 0 {
 		if reads >= int(entries) {
 			break
