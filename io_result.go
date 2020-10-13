@@ -84,12 +84,16 @@ func (result *Result) ReturnFd() (int, error) {
 func (result *Result) ReturnInt() (int, error) {
 	result.resolve()
 
+	if result.err != nil {
+		return -1, result.err
+	}
+
 	fd, ok := result.r0.(int)
 	if !ok {
 		return -1, errors.New("")
 	}
 
-	return fd, result.err
+	return fd, nil
 }
 
 func errResolver(result *Result) {

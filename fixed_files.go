@@ -70,7 +70,10 @@ func (register *fileRegister) GetFileIndex(fd int32) (int, bool) {
 	}
 
 	i, ok := register.indexs.Load(fd)
-	return i.(int), ok
+	if !ok {
+		return -1, false
+	}
+	return i.(int), true
 }
 
 func (register *fileRegister) register() error {
@@ -244,12 +247,18 @@ func (register *fileRegister) UnregisterFiles(fds []int32) error {
 
 func (register *fileRegister) deleteFile(fd int32) (fdi int, ok bool) {
 	var v interface{}
-	v, ok = register.indexs.LoadAndDelete(fd)
+	/*
+		go version >= 1.15
+
+		v, ok = register.index.LoadAndDelete(fd)
+	*/
+	v, ok = register.indexs.Load(fd)
 	if !ok {
 		return
 	}
-	fdi = v.(int)
+	register.indexs.Delete(fd)
 
+	fdi = v.(int)
 	register.fds[fdi] = -1
 
 	var updated bool
