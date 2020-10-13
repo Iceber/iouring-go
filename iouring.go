@@ -61,7 +61,6 @@ func New(entries uint, opts ...IOURingOption) (iour *IOURing, err error) {
 
 	iour.fileRegister = &fileRegister{
 		iouringFd:    iour.fd,
-		indexs:       make(map[int32]int),
 		sparseIndexs: make(map[int]int),
 	}
 	iour.Flags = iour.params.Flags

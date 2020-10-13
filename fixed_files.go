@@ -11,8 +11,8 @@ import (
 	iouring_syscall "github.com/iceber/iouring-go/syscall"
 )
 
-func (iour *IOURing) FileRegister() FileRegister {
-	return iour.fileRegister
+func (iour *IOURing) GetFixedFileIndex(file *os.File) (int, bool) {
+	return iour.fileRegister.GetFileIndex(int32(file.Fd()))
 }
 
 func (iour *IOURing) RegisterFile(file *os.File) error {
@@ -41,8 +41,8 @@ func (iour *IOURing) UnregisterFiles(files []*os.File) error {
 	return iour.fileRegister.UnregisterFiles(fds)
 }
 
-func (iour *IOURing) GetFixedFileIndex(file *os.File) (int, bool) {
-	return iour.fileRegister.GetFileIndex(int32(file.Fd()))
+func (iour *IOURing) FileRegister() FileRegister {
+	return iour.fileRegister
 }
 
 type FileRegister interface {
@@ -60,8 +60,8 @@ type fileRegister struct {
 	fds          []int32
 	sparseIndexs map[int]int
 
-	indexLock sync.RWMutex
-	indexs    map[int32]int
+	registered bool
+	indexs     sync.Map
 }
 
 func (register *fileRegister) GetFileIndex(fd int32) (int, bool) {
@@ -69,10 +69,8 @@ func (register *fileRegister) GetFileIndex(fd int32) (int, bool) {
 		return -1, false
 	}
 
-	register.indexLock.RLock()
-	i, ok := register.indexs[fd]
-	register.indexLock.RUnlock()
-	return i, ok
+	i, ok := register.indexs.Load(fd)
+	return i.(int), ok
 }
 
 func (register *fileRegister) register() error {
@@ -85,11 +83,10 @@ func (register *fileRegister) register() error {
 		return err
 	}
 
-	register.indexLock.Lock()
 	for i, fd := range register.fds {
-		register.indexs[fd] = i
+		register.indexs.Store(fd, i)
 	}
-	register.indexLock.Unlock()
+	register.registered = true
 	return nil
 }
 
@@ -103,18 +100,16 @@ func (register *fileRegister) RegisterFiles(fds []int32) error {
 	}
 
 	vfds := make([]int32, 0, len(fds))
-	register.indexLock.RLock()
 	for _, fd := range fds {
 		if fd < 0 {
 			continue
 		}
 
-		if _, ok := register.indexs[fd]; ok {
+		if _, ok := register.indexs.Load(fd); ok {
 			continue
 		}
 		vfds = append(vfds, fd)
 	}
-	register.indexLock.RUnlock()
 
 	if len(vfds) == 0 {
 		return nil
@@ -124,7 +119,7 @@ func (register *fileRegister) RegisterFiles(fds []int32) error {
 	register.lock.Lock()
 	defer register.lock.Unlock()
 
-	if len(register.indexs) == 0 {
+	if !register.registered {
 		register.fds = fds
 		return register.register()
 	}
@@ -163,12 +158,10 @@ update:
 		}
 		delete(register.sparseIndexs, i)
 	}
-
-	register.indexLock.Lock()
-	for fd, i := range indexs {
-		register.indexs[fd] = i
+	for i, fd := range register.fds {
+		register.indexs.Store(fd, i)
 	}
-	register.indexLock.Unlock()
+
 	return nil
 }
 
@@ -184,7 +177,7 @@ func (register *fileRegister) RegisterFile(fd int32) error {
 	register.lock.Lock()
 	defer register.lock.Unlock()
 
-	if len(register.indexs) == 0 {
+	if !register.registered {
 		register.fds = []int32{fd}
 		return register.register()
 	}
@@ -206,9 +199,7 @@ func (register *fileRegister) RegisterFile(fd int32) error {
 		register.sparseIndexs[fdi]--
 	}
 
-	register.indexLock.Lock()
-	register.indexs[fd] = fdi
-	register.indexLock.Unlock()
+	register.indexs.Store(fd, fdi)
 	return nil
 }
 
@@ -252,14 +243,12 @@ func (register *fileRegister) UnregisterFiles(fds []int32) error {
 }
 
 func (register *fileRegister) deleteFile(fd int32) (fdi int, ok bool) {
-	fdi, ok = register.indexs[fd]
+	var v interface{}
+	v, ok = register.indexs.LoadAndDelete(fd)
 	if !ok {
 		return
 	}
-
-	register.indexLock.Lock()
-	delete(register.indexs, fd)
-	register.indexLock.Unlock()
+	fdi = v.(int)
 
 	register.fds[fdi] = -1
 
