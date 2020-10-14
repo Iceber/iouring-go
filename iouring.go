@@ -93,6 +93,7 @@ func (iour *IOURing) doRequest(sqe *iouring_syscall.SubmissionQueueEntry, reques
 	iour.userDataLock.Unlock()
 	sqe.SetUserData(id)
 
+	userData.result.fd = int(sqe.Fd())
 	if sqe.Fd() >= 0 {
 		if index, ok := iour.fileRegister.GetFileIndex(int32(sqe.Fd())); ok {
 			sqe.SetFdIndex(int32(index))
@@ -265,10 +266,8 @@ func (iour *IOURing) run() {
 			continue
 		}
 
-		userData.result.load(cqe)
-
-		if userData.done != nil {
-			userData.done <- userData.result
+		if userData.resulter != nil {
+			userData.resulter <- userData.getResult(cqe)
 		}
 	}
 }

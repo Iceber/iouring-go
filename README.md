@@ -120,6 +120,8 @@ iour.SubmitLinkRequests([]iouring.Request{request1, request2}, nil)
 
 [timer](https://github.com/Iceber/iouring-go/tree/main/examples/timeout/timer)
 
+[echo](https://github.com/Iceber/iouring-go/tree/main/examples/echo)
+
 # TODO
 * friendly error
 * add tests

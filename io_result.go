@@ -7,8 +7,6 @@ import (
 	"syscall"
 
 	"github.com/pkg/errors"
-
-	iouring_syscall "github.com/iceber/iouring-go/syscall"
 )
 
 type ResultResolver func(result *Result)
@@ -20,6 +18,7 @@ type Result struct {
 	once     sync.Once
 	resolver ResultResolver
 
+	fd int
 	b0 *[]byte
 	b1 *[]byte
 	bs *[][]byte
@@ -29,10 +28,6 @@ type Result struct {
 	r1  interface{}
 
 	requestInfo interface{}
-}
-
-func (result *Result) load(cqe *iouring_syscall.CompletionQueueEvent) {
-	result.res = cqe.Result
 }
 
 func (result *Result) resolve() {
@@ -48,6 +43,10 @@ func (result *Result) resolve() {
 
 func (result *Result) Opcode() uint8 {
 	return result.opcode
+}
+
+func (result *Result) Fd() int {
+	return result.fd
 }
 
 func (result *Result) GetRequestBuffer() (b0, b1 *[]byte) {

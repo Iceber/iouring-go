@@ -2,9 +2,11 @@
 
 package iouring
 
+import iouring_syscall "github.com/iceber/iouring-go/syscall"
+
 type UserData struct {
-	done   chan<- *Result
-	opcode uint8
+	resulter chan<- *Result
+	opcode   uint8
 
 	holds  []interface{}
 	result *Result
@@ -12,6 +14,12 @@ type UserData struct {
 
 func (data *UserData) SetResultResolver(resolver ResultResolver) {
 	data.result.resolver = resolver
+}
+
+func (data *UserData) getResult(cqe *iouring_syscall.CompletionQueueEvent) *Result {
+	data.result.res = cqe.Result
+
+	return data.result
 }
 
 func (data *UserData) SetRequestInfo(info interface{}) {
@@ -41,7 +49,7 @@ func (data *UserData) setOpcode(opcode uint8) {
 
 func makeUserData(ch chan<- *Result) *UserData {
 	return &UserData{
-		done:   ch,
-		result: &Result{},
+		resulter: ch,
+		result:   &Result{},
 	}
 }
