@@ -3,6 +3,7 @@
 package iouring_syscall
 
 import (
+	"fmt"
 	"syscall"
 	"unsafe"
 )
@@ -65,17 +66,16 @@ type CompletionQueueRingOffset struct {
 	Resv     [2]uint64
 }
 
-func IOURingSetup(entries uint, params *IOURingParams) (fd int, err error) {
+func IOURingSetup(entries uint, params *IOURingParams) (int, error) {
 	res, _, errno := syscall.RawSyscall(
 		SYS_IO_URING_SETUP,
 		uintptr(entries),
 		uintptr(unsafe.Pointer(params)),
 		0,
 	)
-	fd = int(res)
 	if errno != 0 {
-		err = errno
-		return
+		return int(res), fmt.Errorf("syscall: %w", errno)
 	}
-	return
+
+	return int(res), nil
 }

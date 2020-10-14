@@ -3,13 +3,18 @@
 package iouring
 
 import (
+	"fmt"
 	"reflect"
 	"runtime"
 	"syscall"
 	"unsafe"
 
 	iouring_syscall "github.com/iceber/iouring-go/syscall"
-	"github.com/pkg/errors"
+)
+
+var (
+	uint32Size = uint32(unsafe.Sizeof(uint32(0)))
+	sqeSize    = uint32(unsafe.Sizeof(iouring_syscall.SubmissionQueueEntry{}))
 )
 
 func mmapIOURing(iour *IOURing) error {
@@ -34,14 +39,13 @@ func mmapIOURing(iour *IOURing) error {
 }
 
 func mmapSQ(iour *IOURing) (err error) {
-	params := iour.params
 	sq := iour.sq
+	params := iour.params
 
-	sq.size = uint32(uint(params.SQOffset.Array) + (uint(params.SQEntries) * uint(unsafe.Sizeof(uint32(0)))))
-
+	sq.size = params.SQOffset.Array + params.SQEntries*uint32Size
 	sq.ptr, err = mmap(iour.fd, sq.size, iouring_syscall.IORING_OFF_SQ_RING)
 	if err != nil {
-		return errors.Wrap(err, "failed to mmap sq ring")
+		return fmt.Errorf("mmap sq ring: %w", err)
 	}
 
 	sq.head = (*uint32)(unsafe.Pointer(sq.ptr + uintptr(params.SQOffset.Head)))
@@ -65,11 +69,11 @@ func mmapCQ(iour *IOURing) (err error) {
 	params := iour.params
 	cq := iour.cq
 
-	cq.size = uint32(uint(params.CQOffset.Cqes) + (uint(params.CQEntries) * uint(unsafe.Sizeof(uint32(0)))))
+	cq.size = params.CQOffset.Cqes + params.CQEntries*uint32Size
 	if cq.ptr == 0 {
 		cq.ptr, err = mmap(iour.fd, cq.size, iouring_syscall.IORING_OFF_CQ_RING)
 		if err != nil {
-			return errors.Wrap(err, "failed to mmap cq ring")
+			return fmt.Errorf("mmap cq ring: %w", err)
 		}
 	}
 
@@ -79,11 +83,12 @@ func mmapCQ(iour *IOURing) (err error) {
 	cq.flags = (*uint32)(unsafe.Pointer(cq.ptr + uintptr(params.CQOffset.Flags)))
 	cq.overflow = (*uint32)(unsafe.Pointer(cq.ptr + uintptr(params.CQOffset.Overflow)))
 
-	cq.cqes = *(*[]iouring_syscall.CompletionQueueEvent)(unsafe.Pointer(&reflect.SliceHeader{
-		Data: cq.ptr + uintptr(params.CQOffset.Cqes),
-		Len:  int(params.CQEntries),
-		Cap:  int(params.CQEntries),
-	}))
+	cq.cqes = *(*[]iouring_syscall.CompletionQueueEvent)(
+		unsafe.Pointer(&reflect.SliceHeader{
+			Data: cq.ptr + uintptr(params.CQOffset.Cqes),
+			Len:  int(params.CQEntries),
+			Cap:  int(params.CQEntries),
+		}))
 
 	runtime.KeepAlive(cq.ptr)
 	return nil
@@ -92,16 +97,17 @@ func mmapCQ(iour *IOURing) (err error) {
 func mmapSQEs(iour *IOURing) error {
 	params := iour.params
 
-	ptr, err := mmap(iour.fd, uint32(params.SQEntries)*uint32(unsafe.Sizeof(iouring_syscall.SubmissionQueueEntry{})), iouring_syscall.IORING_OFF_SQES)
+	ptr, err := mmap(iour.fd, params.SQEntries*sqeSize, iouring_syscall.IORING_OFF_SQES)
 	if err != nil {
-		return err
+		return fmt.Errorf("mmap sqe array: %w", err)
 	}
 
-	iour.sq.sqes = *(*[]iouring_syscall.SubmissionQueueEntry)(unsafe.Pointer(&reflect.SliceHeader{
-		Data: ptr,
-		Len:  int(params.SQEntries),
-		Cap:  int(params.SQEntries),
-	}))
+	iour.sq.sqes = *(*[]iouring_syscall.SubmissionQueueEntry)(
+		unsafe.Pointer(&reflect.SliceHeader{
+			Data: ptr,
+			Len:  int(params.SQEntries),
+			Cap:  int(params.SQEntries),
+		}))
 
 	return nil
 }

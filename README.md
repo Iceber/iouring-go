@@ -23,10 +23,12 @@
 # OS Requirements
 * Linux Kernel >= 5.6
 
+
 # Installation
 ```
 go get github.com/iceber/iouring-go
 ```
+[doc](https://pkg.go.dev/github.com/iceber/iouring-go)
 
 # Quickstart
 ```
@@ -123,7 +125,6 @@ iour.SubmitLinkRequests([]iouring.Request{request1, request2}, nil)
 [echo](https://github.com/Iceber/iouring-go/tree/main/examples/echo)
 
 # TODO
-* friendly error
 * add tests
 * arguments type (eg. int and int32)
 * set logger

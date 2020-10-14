@@ -99,7 +99,7 @@ func (register *fileRegister) unregister() error {
 
 func (register *fileRegister) RegisterFiles(fds []int32) error {
 	if len(fds) == 0 {
-		return errors.New("files is empty")
+		return errors.New("file set is empty")
 	}
 
 	vfds := make([]int32, 0, len(fds))

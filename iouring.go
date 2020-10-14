@@ -9,7 +9,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
-	"unsafe"
 
 	iouring_syscall "github.com/iceber/iouring-go/syscall"
 )
@@ -50,12 +49,10 @@ func New(entries uint, opts ...IOURingOption) (iour *IOURing, err error) {
 
 	iour.fd, err = iouring_syscall.IOURingSetup(entries, iour.params)
 	if err != nil {
-		log.Println("setup", err)
 		return nil, err
 	}
 
 	if err := mmapIOURing(iour); err != nil {
-		log.Println("mmap", err)
 		return nil, err
 	}
 
@@ -87,7 +84,6 @@ func (iour *IOURing) doRequest(sqe *iouring_syscall.SubmissionQueueEntry, reques
 	request(sqe, userData)
 	userData.setOpcode(sqe.Opcode())
 
-	id = uint64(uintptr(unsafe.Pointer(userData)))
 	iour.userDataLock.Lock()
 	iour.userDatas[id] = userData
 	iour.userDataLock.Unlock()
@@ -98,7 +94,7 @@ func (iour *IOURing) doRequest(sqe *iouring_syscall.SubmissionQueueEntry, reques
 		if index, ok := iour.fileRegister.GetFileIndex(int32(sqe.Fd())); ok {
 			sqe.SetFdIndex(int32(index))
 		} else if iour.Flags&iouring_syscall.IORING_SETUP_FLAGS_SQPOLL != 0 {
-			return 0, errors.New("fd is not registered")
+			return 0, ErrUnregisteredFile
 		}
 	}
 
@@ -129,7 +125,7 @@ func (iour *IOURing) SubmitRequest(request Request, ch chan<- *Result) (uint64, 
 func (iour *IOURing) SubmitRequests(requests []Request, ch chan<- *Result) error {
 	// TODO(iceber): no length limit
 	if len(requests) > int(*iour.sq.entries) {
-		return errors.New("requests is too many")
+		return errors.New("too many requests")
 	}
 
 	iour.submitLock.Lock()

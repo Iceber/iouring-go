@@ -8,9 +8,55 @@ import (
 	iouring_syscall "github.com/iceber/iouring-go/syscall"
 )
 
+// iouring operations
 const (
-	IOURING_FOUND_REQUEST          = 1
-	IOURING_REQUEST_MAYBE_CANCELED = 2
+	OpNop uint8 = iota
+	OpReadv
+	OpWritev
+	OpFsync
+	OpReadFixed
+	OpWriteFixed
+	OpPollAdd
+	OpPollRemove
+	OpSyncFileRange
+	OpSendmsg
+	OpRecvmsg
+	OpTimeout
+	OpTimeoutRemove
+	OpAccept
+	OpAsyncCancel
+	OpLinkTimeout
+	OpConnect
+	OpFallocate
+	OpOpenat
+	OpClose
+	OpFilesUpdate
+	OpStatx
+	OpRead
+	OpWrite
+	OpFadvise
+	OpMadvise
+	OpSend
+	OpRecv
+	OpOpenat2
+	OpEpollCtl
+	OpSplice
+	OpProvideBuffers
+	OpRemoveBuffers
+	OpTee
+	OpShutdown
+)
+
+// cancel operation return value
+const (
+	RequestCanceledSuccessfully = 0
+	RequestMaybeCanceled        = 1
+)
+
+// timeout operation return value
+const (
+	TimeoutExpiration = 0
+	CountCompletion   = 1
 )
 
 var _zero uintptr
@@ -104,41 +150,3 @@ func (queue *CompletionQueue) advance(num uint32) {
 		atomic.AddUint32(queue.head, num)
 	}
 }
-
-const (
-	IORING_OP_NOP uint8 = iota
-	IORING_OP_READV
-	IORING_OP_WRITEV
-	IORING_OP_FSYNC
-	IORING_OP_READ_FIXED
-	IORING_OP_WRITE_FIXED
-	IORING_OP_POLL_ADD
-	IORING_OP_POLL_REMOVE
-	IORING_OP_SYNC_FILE_RANGE
-	IORING_OP_SENDMSG
-	IORING_OP_RECVMSG
-	IORING_OP_TIMEOUT
-	IORING_OP_TIMEOUT_REMOVE
-	IORING_OP_ACCEPT
-	IORING_OP_ASYNC_CANCEL
-	IORING_OP_LINK_TIMEOUT
-	IORING_OP_CONNECT
-	IORING_OP_FALLOCATE
-	IORING_OP_OPENAT
-	IORING_OP_CLOSE
-	IORING_OP_FILES_UPDATE
-	IORING_OP_STATX
-	IORING_OP_READ
-	IORING_OP_WRITE
-	IORING_OP_FADVISE
-	IORING_OP_MADVISE
-	IORING_OP_SEND
-	IORING_OP_RECV
-	IORING_OP_OPENAT2
-	IORING_OP_EPOLL_CTL
-	IORING_OP_SPLICE
-	IORING_OP_PROVIDE_BUFFERS
-	IORING_OP_REMOVE_BUFFERS
-	IORING_OP_TEE
-	IORING_OP_SHUTDOWN
-)

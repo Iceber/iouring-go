@@ -3,6 +3,7 @@
 package iouring_syscall
 
 import (
+	"fmt"
 	"syscall"
 	"unsafe"
 
@@ -27,10 +28,10 @@ func IOURingEnter(fd int, toSubmit uint32, minComplete uint32, flags uint32, sig
 		0,
 	)
 	if errno != 0 {
-		return 0, errno
+		return 0, fmt.Errorf("syscall: %w", errno)
 	}
 	if res < 0 {
-		return 0, syscall.Errno(-res)
+		return 0, fmt.Errorf("syscall: %w", syscall.Errno(-res))
 	}
 
 	return int(res), nil

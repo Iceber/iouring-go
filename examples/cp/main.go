@@ -83,7 +83,7 @@ func main() {
 			panic(err)
 		}
 
-		if result.Opcode() == iouring.IORING_OP_READ {
+		if result.Opcode() == iouring.OpRead {
 			b, _ := result.GetRequestBuffer()
 			offset := result.GetRequestInfo().(uint64)
 			request := iouring.Pwrite(int(dest.Fd()), *b, offset)

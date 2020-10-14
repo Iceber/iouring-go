@@ -3,15 +3,15 @@
 package iouring
 
 import (
+	"errors"
 	"sync"
 	"syscall"
-
-	"github.com/pkg/errors"
 )
 
 type ResultResolver func(result *Result)
 
 type Result struct {
+	id     uint64
 	opcode uint8
 	res    int32
 
@@ -41,6 +41,10 @@ func (result *Result) resolve() {
 	})
 }
 
+func (result *Result) ID() uint64 {
+	return result.id
+}
+
 func (result *Result) Opcode() uint8 {
 	return result.opcode
 }
@@ -61,6 +65,11 @@ func (result *Result) GetRequestInfo() interface{} {
 	return result.requestInfo
 }
 
+func (result *Result) Err() error {
+	result.resolve()
+	return result.err
+}
+
 func (result *Result) ReturnValue0() interface{} {
 	result.resolve()
 	return result.r0
@@ -69,11 +78,6 @@ func (result *Result) ReturnValue0() interface{} {
 func (result *Result) ReturnValue1() interface{} {
 	result.resolve()
 	return result.r1
-}
-
-func (result *Result) Err() error {
-	result.resolve()
-	return result.err
 }
 
 func (result *Result) ReturnFd() (int, error) {
@@ -89,7 +93,7 @@ func (result *Result) ReturnInt() (int, error) {
 
 	fd, ok := result.r0.(int)
 	if !ok {
-		return -1, errors.New("")
+		return -1, errors.New("result value is not int")
 	}
 
 	return fd, nil
@@ -99,7 +103,8 @@ func errResolver(result *Result) {
 	if result.res < 0 {
 		result.err = syscall.Errno(-result.res)
 		if result.err == syscall.ECANCELED {
-			result.err = IOURING_ERROR_CANCELED
+			// request is canceled
+			result.err = ErrRequestCanceled
 		}
 	}
 }
@@ -113,16 +118,19 @@ func fdResolver(result *Result) {
 
 func timeoutResolver(result *Result) {
 	if errResolver(result); result.err != nil {
-		// timeout completion
+		// if timeout got completed through expiration of the timer
+		// result.res is -ETIME and result.err is syscall.ETIME
 		if result.err == syscall.ETIME {
 			result.err = nil
-			result.r0 = IOURING_TIMEOUT
+			result.r0 = TimeoutExpiration
 		}
 		return
 	}
 
+	// if timeout got completed through requests completing
+	// result.res is 0
 	if result.res == 0 {
-		result.r0 = IOURING_TIMEOUT_WITH_CQE_COUNT
+		result.r0 = CountCompletion
 	}
 }
 
@@ -130,29 +138,32 @@ func removeTimeoutResolver(result *Result) {
 	if errResolver(result); result.err != nil {
 		switch result.err {
 		case syscall.EBUSY:
-			result.err = errors.Wrap(result.err, "already timeout")
+			// timeout request was found bu expiration was already in progress
+			result.err = ErrRequestCompleted
 		case syscall.ENOENT:
-			result.err = errors.Wrap(result.err, "timeout request not found")
+			// timeout request not found
+			result.err = ErrRequestNotFound
 		}
-	}
-	if result.res == 0 {
-		result.r0 = IOURING_TIMEOUT_WITH_CQE_COUNT
 		return
 	}
+
+	// timeout request is found and cacelled successfully
+	// result.res value is 0
 }
 
 func cancelResolver(result *Result) {
 	if errResolver(result); result.err != nil {
 		switch result.err {
 		case syscall.ENOENT:
-			result.err = errors.Wrap(result.err, "request not found")
+			result.err = ErrRequestNotFound
 		case syscall.EALREADY:
 			result.err = nil
-			result.r0 = IOURING_REQUEST_MAYBE_CANCELED
+			result.r0 = RequestMaybeCanceled
 		}
+		return
 	}
 
 	if result.res == 0 {
-		result.r0 = IOURING_FOUND_REQUEST
+		result.r0 = RequestCanceledSuccessfully
 	}
 }

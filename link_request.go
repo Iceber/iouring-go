@@ -22,7 +22,7 @@ func (iour *IOURing) SubmitHardLinkRequests(requests []Request, ch chan<- *Resul
 func (iour *IOURing) submitLinkRequest(requests []Request, ch chan<- *Result, hard bool) error {
 	// TODO(iceber): no length limit
 	if len(requests) > int(*iour.sq.entries) {
-		return errors.New("requests is too many")
+		return errors.New("too many requests")
 	}
 
 	flags := iouring_syscall.IOSQE_FLAGS_IO_LINK

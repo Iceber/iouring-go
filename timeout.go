@@ -11,11 +11,6 @@ import (
 	iouring_syscall "github.com/iceber/iouring-go/syscall"
 )
 
-const (
-	IOURING_TIMEOUT                = 0
-	IOURING_TIMEOUT_WITH_CQE_COUNT = 1
-)
-
 func RequestWithTimeout(request Request, timeout time.Duration) []Request {
 	linkRequest := func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		request(sqe, userData)

@@ -3,6 +3,7 @@
 package iouring_syscall
 
 import (
+	"fmt"
 	"syscall"
 	"unsafe"
 )
@@ -40,7 +41,7 @@ func IOURingRegister(fd int, opcode uint8, args unsafe.Pointer, nrArgs uint32) e
 		0,
 	)
 	if errno != 0 {
-		return errno
+		return fmt.Errorf("syscall: %w", errno)
 	}
 	return nil
 }

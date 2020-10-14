@@ -38,19 +38,19 @@ func main() {
 	for {
 		result := <-resulter
 		switch result.Opcode() {
-		case iouring.IORING_OP_ACCEPT:
+		case iouring.OpAccept:
 			if _, err := iour.SubmitRequest(iouring.Accept(fd), resulter); err != nil {
 				panicf("submit accept request error: %v", err)
 			}
 			accept(result)
 
-		case iouring.IORING_OP_READ:
+		case iouring.OpRead:
 			read(result)
 
-		case iouring.IORING_OP_WRITE:
+		case iouring.OpWrite:
 			write(result)
 
-		case iouring.IORING_OP_CLOSE:
+		case iouring.OpClose:
 			close(result)
 		}
 	}
