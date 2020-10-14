@@ -7,7 +7,6 @@ import (
 	"log"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"syscall"
 
 	iouring_syscall "github.com/iceber/iouring-go/syscall"
@@ -19,6 +18,9 @@ type IOURing struct {
 	params *iouring_syscall.IOURingParams
 	fd     int
 
+	eventfd int
+	cqeSign chan struct{}
+
 	sq *SubmissionQueue
 	cq *CompletionQueue
 
@@ -26,8 +28,6 @@ type IOURing struct {
 	Flags uint32
 
 	submitLock sync.Mutex
-	submits    int64
-	submitSign chan struct{}
 
 	userDataLock sync.RWMutex
 	userDatas    map[uint64]*UserData
@@ -38,9 +38,9 @@ type IOURing struct {
 // New return a IOURing instance by IOURingOptions
 func New(entries uint, opts ...IOURingOption) (iour *IOURing, err error) {
 	iour = &IOURing{
-		params:     &iouring_syscall.IOURingParams{},
-		userDatas:  make(map[uint64]*UserData),
-		submitSign: make(chan struct{}, 1),
+		params:    &iouring_syscall.IOURingParams{},
+		userDatas: make(map[uint64]*UserData),
+		cqeSign:   make(chan struct{}, 1),
 	}
 
 	for _, opt := range opts {
@@ -61,6 +61,14 @@ func New(entries uint, opts ...IOURingOption) (iour *IOURing, err error) {
 		sparseIndexs: make(map[int]int),
 	}
 	iour.Flags = iour.params.Flags
+
+	if err := iour.registerEventfd(); err != nil {
+		return nil, err
+	}
+
+	if err := registerIOURing(iour); err != nil {
+		return nil, err
+	}
 
 	go iour.run()
 	return iour, nil
@@ -84,6 +92,7 @@ func (iour *IOURing) doRequest(sqe *iouring_syscall.SubmissionQueueEntry, reques
 	request(sqe, userData)
 	userData.setOpcode(sqe.Opcode())
 
+	id = userData.id
 	iour.userDataLock.Lock()
 	iour.userDatas[id] = userData
 	iour.userDataLock.Unlock()
@@ -159,17 +168,6 @@ func (iour *IOURing) needEnter(flags *uint32) bool {
 
 func (iour *IOURing) submit() (submitted int, err error) {
 	submitted = iour.sq.flush()
-	defer func() {
-		if err != nil {
-			return
-		}
-		atomic.AddInt64(&iour.submits, int64(submitted))
-
-		select {
-		case iour.submitSign <- struct{}{}:
-		default:
-		}
-	}()
 
 	var flags uint32
 	if !iour.needEnter(&flags) || submitted == 0 {
@@ -219,8 +217,7 @@ func (iour *IOURing) getCQEvent(wait bool) (cqe *iouring_syscall.CompletionQueue
 			err = syscall.EAGAIN
 			return
 		}
-
-		runtime.Gosched()
+		<-iour.cqeSign
 
 		/*
 			_, err = iouring_syscall.IOURingEnter(iour.fd, 0, 1, iouring_syscall.IORING_ENTER_FLAGS_GETEVENTS, nil)
@@ -233,17 +230,11 @@ func (iour *IOURing) getCQEvent(wait bool) (cqe *iouring_syscall.CompletionQueue
 
 func (iour *IOURing) run() {
 	for {
-		if atomic.LoadInt64(&iour.submits) <= 0 {
-			<-iour.submitSign
-			continue
-		}
-
 		cqe, err := iour.getCQEvent(true)
 		if cqe == nil || err != nil {
 			log.Println("runComplete error: ", err)
 			continue
 		}
-		atomic.AddInt64(&iour.submits, -1)
 
 		// log.Println("cqe user data", (cqe.UserData))
 

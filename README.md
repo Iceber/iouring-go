@@ -17,7 +17,6 @@
 - [x] add request extra info, could get it from the result
 - [ ] set logger
 - [ ] register buffers and IO with buffers
-- [ ] support Eventfd 
 - [ ] support SQPoll 
 
 # OS Requirements

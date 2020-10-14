@@ -3,7 +3,7 @@
 package iouring_syscall
 
 import (
-	"fmt"
+	"os"
 	"syscall"
 	"unsafe"
 )
@@ -74,7 +74,7 @@ func IOURingSetup(entries uint, params *IOURingParams) (int, error) {
 		0,
 	)
 	if errno != 0 {
-		return int(res), fmt.Errorf("syscall: %w", errno)
+		return int(res), os.NewSyscallError("iouring_setup", errno)
 	}
 
 	return int(res), nil

@@ -4,6 +4,7 @@ package iouring
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 	"runtime"
 	"syscall"
@@ -123,7 +124,7 @@ func mmap(fd int, length uint32, offset uint64) (uintptr, error) {
 		uintptr(offset),
 	)
 	if errno != 0 {
-		return 0, errno
+		return 0, os.NewSyscallError("mmap", errno)
 	}
 	return uintptr(ptr), nil
 }
