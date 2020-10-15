@@ -33,6 +33,10 @@ func (iour *IOURing) submitLinkRequest(requests []Request, ch chan<- *Result, ha
 	iour.submitLock.Lock()
 	defer iour.submitLock.Unlock()
 
+	if iour.IsClosed() {
+		return ErrIOURingClosed
+	}
+
 	var sqeN uint32
 	for i := range requests {
 		sqe := iour.getSQEntry()

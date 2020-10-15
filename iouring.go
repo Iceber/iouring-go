@@ -5,6 +5,7 @@ package iouring
 import (
 	"errors"
 	"log"
+	"os"
 	"runtime"
 	"sync"
 	"syscall"
@@ -33,6 +34,10 @@ type IOURing struct {
 	userDatas    map[uint64]*UserData
 
 	fileRegister FileRegister
+
+	fdclosed bool
+	closer   chan struct{}
+	closed   chan struct{}
 }
 
 // New return a IOURing instance by IOURingOptions
@@ -41,6 +46,8 @@ func New(entries uint, opts ...IOURingOption) (iour *IOURing, err error) {
 		params:    &iouring_syscall.IOURingParams{},
 		userDatas: make(map[uint64]*UserData),
 		cqeSign:   make(chan struct{}, 1),
+		closer:    make(chan struct{}),
+		closed:    make(chan struct{}),
 	}
 
 	for _, opt := range opts {
@@ -72,6 +79,49 @@ func New(entries uint, opts ...IOURingOption) (iour *IOURing, err error) {
 
 	go iour.run()
 	return iour, nil
+}
+
+func (iour *IOURing) Close() error {
+	iour.submitLock.Lock()
+	defer iour.submitLock.Unlock()
+
+	select {
+	case <-iour.closer:
+	default:
+		close(iour.closer)
+	}
+
+	if iour.eventfd > 0 {
+		if err := removeIOURing(iour); err != nil {
+			return err
+		}
+		syscall.Close(iour.eventfd)
+		iour.eventfd = -1
+	}
+
+	<-iour.closed
+
+	if err := munmapIOURing(iour); err != nil {
+		return err
+	}
+
+	if !iour.fdclosed {
+		if err := syscall.Close(iour.fd); err != nil {
+			return os.NewSyscallError("close", err)
+		}
+		iour.fdclosed = true
+	}
+
+	return nil
+}
+
+func (iour *IOURing) IsClosed() (closed bool) {
+	select {
+	case <-iour.closer:
+		closed = true
+	default:
+	}
+	return
 }
 
 // TODO(iceber): get available entry use async notification
@@ -119,6 +169,10 @@ func (iour *IOURing) SubmitRequest(request Request, ch chan<- *Result) (uint64, 
 	iour.submitLock.Lock()
 	defer iour.submitLock.Unlock()
 
+	if iour.IsClosed() {
+		return 0, ErrIOURingClosed
+	}
+
 	sqe := iour.getSQEntry()
 	id, err := iour.doRequest(sqe, request, ch)
 	if err != nil {
@@ -139,6 +193,10 @@ func (iour *IOURing) SubmitRequests(requests []Request, ch chan<- *Result) error
 
 	iour.submitLock.Lock()
 	defer iour.submitLock.Unlock()
+
+	if iour.IsClosed() {
+		return ErrIOURingClosed
+	}
 
 	var sqeN uint32
 	for _, request := range requests {
@@ -207,6 +265,7 @@ func (iour *IOURing) CancelRequest(id uint64, ch chan<- *Result) error {
 }
 
 func (iour *IOURing) getCQEvent(wait bool) (cqe *iouring_syscall.CompletionQueueEvent, err error) {
+	var tryPeeks int
 	for {
 		if cqe = iour.cq.peek(); cqe != nil {
 			iour.cq.advance(1)
@@ -217,7 +276,16 @@ func (iour *IOURing) getCQEvent(wait bool) (cqe *iouring_syscall.CompletionQueue
 			err = syscall.EAGAIN
 			return
 		}
-		<-iour.cqeSign
+		if tryPeeks++; tryPeeks < 3 {
+			runtime.Gosched()
+			continue
+		}
+
+		select {
+		case <-iour.cqeSign:
+		case <-iour.closer:
+			return nil, ErrIOURingClosed
+		}
 
 		/*
 			_, err = iouring_syscall.IOURingEnter(iour.fd, 0, 1, iouring_syscall.IORING_ENTER_FLAGS_GETEVENTS, nil)
@@ -232,6 +300,10 @@ func (iour *IOURing) run() {
 	for {
 		cqe, err := iour.getCQEvent(true)
 		if cqe == nil || err != nil {
+			if err == ErrIOURingClosed {
+				close(iour.closed)
+				return
+			}
 			log.Println("runComplete error: ", err)
 			continue
 		}

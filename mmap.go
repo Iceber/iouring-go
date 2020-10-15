@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"reflect"
-	"runtime"
 	"syscall"
 	"unsafe"
 
@@ -18,22 +17,28 @@ var (
 	sqeSize    = uint32(unsafe.Sizeof(iouring_syscall.SubmissionQueueEntry{}))
 )
 
-func mmapIOURing(iour *IOURing) error {
+func mmapIOURing(iour *IOURing) (err error) {
+	defer func() {
+		if err != nil {
+			munmapIOURing(iour)
+		}
+	}()
 	iour.sq = new(SubmissionQueue)
 	iour.cq = new(CompletionQueue)
 
-	if err := mmapSQ(iour); err != nil {
+	if err = mmapSQ(iour); err != nil {
 		return err
 	}
 
 	if (iour.params.Features & iouring_syscall.IORING_FEAT_SINGLE_MMAP) != 0 {
 		iour.cq.ptr = iour.sq.ptr
 	}
-	if err := mmapCQ(iour); err != nil {
+
+	if err = mmapCQ(iour); err != nil {
 		return err
 	}
 
-	if err := mmapSQEs(iour); err != nil {
+	if err = mmapSQEs(iour); err != nil {
 		return err
 	}
 	return nil
@@ -62,7 +67,6 @@ func mmapSQ(iour *IOURing) (err error) {
 		Cap:  int(params.SQEntries),
 	}))
 
-	runtime.KeepAlive(sq.ptr)
 	return nil
 }
 
@@ -91,7 +95,6 @@ func mmapCQ(iour *IOURing) (err error) {
 			Cap:  int(params.CQEntries),
 		}))
 
-	runtime.KeepAlive(cq.ptr)
 	return nil
 }
 
@@ -113,6 +116,35 @@ func mmapSQEs(iour *IOURing) error {
 	return nil
 }
 
+func munmapIOURing(iour *IOURing) error {
+	if iour.sq != nil && iour.sq.ptr != 0 {
+		if len(iour.sq.sqes) != 0 {
+			err := munmap(uintptr(unsafe.Pointer(&iour.sq.sqes[0])), uint32(len(iour.sq.sqes))*sqeSize)
+			if err != nil {
+				return fmt.Errorf("ummap sqe array: %w", err)
+			}
+			iour.sq.sqes = nil
+		}
+
+		if err := munmap(iour.sq.ptr, iour.sq.size); err != nil {
+			return fmt.Errorf("munmap sq: %w", err)
+		}
+		if iour.sq.ptr == iour.cq.ptr {
+			iour.cq = nil
+		}
+		iour.sq = nil
+	}
+
+	if iour.cq != nil && iour.cq.ptr != 0 {
+		if err := munmap(iour.sq.ptr, iour.sq.size); err != nil {
+			return fmt.Errorf("munmap cq: %w", err)
+		}
+		iour.cq = nil
+	}
+
+	return nil
+}
+
 func mmap(fd int, length uint32, offset uint64) (uintptr, error) {
 	ptr, _, errno := syscall.Syscall6(
 		syscall.SYS_MMAP,
@@ -127,4 +159,17 @@ func mmap(fd int, length uint32, offset uint64) (uintptr, error) {
 		return 0, os.NewSyscallError("mmap", errno)
 	}
 	return uintptr(ptr), nil
+}
+
+func munmap(ptr uintptr, length uint32) error {
+	_, _, errno := syscall.Syscall(
+		syscall.SYS_MUNMAP,
+		ptr,
+		uintptr(length),
+		0,
+	)
+	if errno != 0 {
+		return os.NewSyscallError("munmap", errno)
+	}
+	return nil
 }
