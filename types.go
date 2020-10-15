@@ -79,7 +79,7 @@ type SubmissionQueue struct {
 	sqeTail uint32
 }
 
-func (queue *SubmissionQueue) GetSQEntry() *iouring_syscall.SubmissionQueueEntry {
+func (queue *SubmissionQueue) getSQEntry() *iouring_syscall.SubmissionQueueEntry {
 	head := atomic.LoadUint32(queue.head)
 	next := queue.sqeTail + 1
 

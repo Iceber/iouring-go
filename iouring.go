@@ -126,7 +126,7 @@ func (iour *IOURing) IsClosed() (closed bool) {
 
 func (iour *IOURing) getSQEntry() *iouring_syscall.SubmissionQueueEntry {
 	for {
-		sqe := iour.sq.GetSQEntry()
+		sqe := iour.sq.getSQEntry()
 		if sqe != nil {
 			return sqe
 		}
@@ -282,11 +282,13 @@ func (iour *IOURing) submitAndWait(waitCount uint32) (submitted int, err error) 
 }
 */
 
+/*
 // CancelRequest by request id
 func (iour *IOURing) CancelRequest(id uint64, ch chan<- *Result) error {
 	_, err := iour.SubmitRequest(cancelRequest(id), ch)
 	return err
 }
+*/
 
 func (iour *IOURing) getCQEvent(wait bool) (cqe *iouring_syscall.CompletionQueueEvent, err error) {
 	var tryPeeks int
