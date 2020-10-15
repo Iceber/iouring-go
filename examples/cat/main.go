@@ -60,6 +60,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	defer iour.Close()
 
 	for _, filename := range os.Args[1:] {
 		file, err := os.Open(filename)

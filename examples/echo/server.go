@@ -27,6 +27,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	defer iour.Close()
+
 	resulter = make(chan *iouring.Result, 10)
 
 	fd := listenSocket(os.Args[1])

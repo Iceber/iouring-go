@@ -23,6 +23,7 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("new IOURing error: %v", err))
 	}
+	defer iour.Close()
 
 	src, err := os.Open(os.Args[1])
 	if err != nil {

@@ -124,7 +124,6 @@ func (iour *IOURing) IsClosed() (closed bool) {
 	return
 }
 
-// TODO(iceber): get available entry use async notification
 func (iour *IOURing) getSQEntry() *iouring_syscall.SubmissionQueueEntry {
 	for {
 		sqe := iour.sq.GetSQEntry()

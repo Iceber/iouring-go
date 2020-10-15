@@ -18,6 +18,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	defer iour.Close()
 
 	compCh := make(chan *iouring.Result, 1)
 

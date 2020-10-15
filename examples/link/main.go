@@ -19,6 +19,7 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("new IOURing error: %v", err))
 	}
+	defer iour.Close()
 
 	file, err := os.Create("./tmp")
 	if err != nil {

@@ -12,6 +12,8 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("new IOURing error: %v", err))
 	}
+	defer iour.Close()
+
 	now := time.Now()
 
 	request2 := iouring.Timeout(2 * time.Second)
