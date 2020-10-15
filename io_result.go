@@ -5,13 +5,15 @@ package iouring
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 	"syscall"
+
+	iouring_syscall "github.com/iceber/iouring-go/syscall"
 )
 
 type ResultResolver func(result *Result)
 
 type Result struct {
-	id     uint64
 	opcode uint8
 	res    int32
 
@@ -28,21 +30,40 @@ type Result struct {
 	r1  interface{}
 
 	requestInfo interface{}
+
+	group *ResultGroup
+	done  chan struct{}
 }
 
 func (result *Result) resolve() {
-	result.once.Do(func() {
-		if result.resolver == nil {
-			return
-		}
+	if result.resolver == nil {
+		return
+	}
 
+	select {
+	case <-result.done:
+	default:
+		return
+	}
+
+	result.once.Do(func() {
 		result.resolver(result)
 		result.resolver = nil
 	})
 }
 
-func (result *Result) ID() uint64 {
-	return result.id
+func (result *Result) complate(cqe *iouring_syscall.CompletionQueueEvent) {
+	result.res = cqe.Result
+	close(result.done)
+
+	if result.group != nil {
+		result.group.complateOne()
+		result.group = nil
+	}
+}
+
+func (result *Result) Done() <-chan struct{} {
+	return result.done
 }
 
 func (result *Result) Opcode() uint8 {
@@ -97,6 +118,12 @@ func (result *Result) ReturnInt() (int, error) {
 	}
 
 	return fd, nil
+}
+
+func (result *Result) FreeRequestBuffer() {
+	result.b0 = nil
+	result.b1 = nil
+	result.bs = nil
 }
 
 func errResolver(result *Result) {
@@ -166,4 +193,51 @@ func cancelResolver(result *Result) {
 	if result.res == 0 {
 		result.r0 = RequestCanceledSuccessfully
 	}
+}
+
+type ResultGroup struct {
+	results []*Result
+
+	complates int32
+	done      chan struct{}
+}
+
+func newResultGroup(userData []*UserData) *ResultGroup {
+	group := &ResultGroup{
+		results: make([]*Result, len(userData)),
+		done:    make(chan struct{}),
+	}
+
+	for i, data := range userData {
+		group.results[i] = data.result
+		data.result.group = group
+	}
+	return group
+}
+
+func (group *ResultGroup) complateOne() {
+	if atomic.AddInt32(&group.complates, 1) == int32(len(group.results)) {
+		close(group.done)
+	}
+}
+
+func (group *ResultGroup) Len() int {
+	return len(group.results)
+}
+
+func (group *ResultGroup) Done() <-chan struct{} {
+	return group.done
+}
+
+func (group *ResultGroup) Results() []*Result {
+	return group.results
+}
+
+func (group *ResultGroup) ErrResults() (results []*Result) {
+	for _, result := range group.results {
+		if result.Err() != nil {
+			results = append(results, result)
+		}
+	}
+	return
 }

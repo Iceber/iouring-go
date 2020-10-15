@@ -34,7 +34,7 @@ func main() {
 	readRequest2 := iouring.RequestWithInfo(iouring.Write(int(os.Stdout.Fd()), buffer), "read buffer to stdout")
 
 	ch := make(chan *iouring.Result, 4)
-	err = iour.SubmitLinkRequests(
+	_, err = iour.SubmitLinkRequests(
 		[]iouring.Request{
 			writeRequest1,
 			writeRequest2,

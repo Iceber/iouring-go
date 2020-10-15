@@ -47,6 +47,7 @@ func main() {
         if err != nil {
                 panic(fmt.Sprintf("new IOURing error: %v", err))
         }
+        defer iour.Close()
 
         file, err := os.Create("./tmp.txt")
         if err != nil {
@@ -75,9 +76,12 @@ func main() {
 ```
 request := iouring.RequestWithInfo(iouring.Write(int(file.Fd()), []byte(str)), file.Name())
 
-iour.SubmitRequest(request, ch)
+result, err := iour.SubmitRequest(request, nil)
+if err != nil {
+    panic(err)
+}
 
-result <- ch
+<- result.Done()
 info, ok := result.GetRequestInfo().(string)
 ```
 
@@ -92,7 +96,12 @@ offset += 1024
 buf2 := make([]byte, 1024)
 request2 := iouring.Pread(fd, buf1, offset)
 
-iour.SubmitRequests([]iouring.Request{request1, request2}, nil)
+results, err := iour.SubmitRequests([]iouring.Request{request1, request2}, nil)
+if err != nil{
+    panic(err)
+}
+<- results.Done()
+fmt.Println("requests are completed")
 ```
 requests is concurrent execution
 

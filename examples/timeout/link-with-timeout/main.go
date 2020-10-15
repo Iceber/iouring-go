@@ -21,7 +21,7 @@ func main() {
 	rs = append(rs, rs1...)
 
 	ch := make(chan *iouring.Result, 1)
-	if err := iour.SubmitLinkRequests(rs, ch); err != nil {
+	if _, err := iour.SubmitLinkRequests(rs, ch); err != nil {
 		panic(err)
 	}
 

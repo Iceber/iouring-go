@@ -134,81 +134,106 @@ func (iour *IOURing) getSQEntry() *iouring_syscall.SubmissionQueueEntry {
 	}
 }
 
-func (iour *IOURing) doRequest(sqe *iouring_syscall.SubmissionQueueEntry, request Request, ch chan<- *Result) (id uint64, err error) {
+func (iour *IOURing) doRequest(sqe *iouring_syscall.SubmissionQueueEntry, request Request, ch chan<- *Result) (*UserData, error) {
 	// TODO(iceber): use sync.Poll
 	userData := makeUserData(ch)
 
 	request(sqe, userData)
 	userData.setOpcode(sqe.Opcode())
 
-	id = userData.id
-	iour.userDataLock.Lock()
-	iour.userDatas[id] = userData
-	iour.userDataLock.Unlock()
-	sqe.SetUserData(id)
+	sqe.SetUserData(userData.id)
 
 	userData.result.fd = int(sqe.Fd())
 	if sqe.Fd() >= 0 {
 		if index, ok := iour.fileRegister.GetFileIndex(int32(sqe.Fd())); ok {
 			sqe.SetFdIndex(int32(index))
 		} else if iour.Flags&iouring_syscall.IORING_SETUP_FLAGS_SQPOLL != 0 {
-			return 0, ErrUnregisteredFile
+			return nil, ErrUnregisteredFile
 		}
 	}
 
 	if iour.async {
 		sqe.SetFlags(iouring_syscall.IOSQE_FLAGS_ASYNC)
 	}
-	return
+	return userData, nil
 }
 
 // SubmitRequest by Request function and io result is notified via channel
 // return request id, can be used to cancel a request
-func (iour *IOURing) SubmitRequest(request Request, ch chan<- *Result) (uint64, error) {
+func (iour *IOURing) SubmitRequest(request Request, ch chan<- *Result) (*Result, error) {
 	iour.submitLock.Lock()
 	defer iour.submitLock.Unlock()
 
 	if iour.IsClosed() {
-		return 0, ErrIOURingClosed
+		return nil, ErrIOURingClosed
 	}
 
 	sqe := iour.getSQEntry()
-	id, err := iour.doRequest(sqe, request, ch)
+	userData, err := iour.doRequest(sqe, request, ch)
 	if err != nil {
 		iour.sq.fallback(1)
-		return id, err
+		return nil, err
 	}
 
-	_, err = iour.submit()
-	return id, err
+	iour.userDataLock.Lock()
+	iour.userDatas[userData.id] = userData
+	iour.userDataLock.Unlock()
+
+	if _, err = iour.submit(); err != nil {
+		iour.userDataLock.Lock()
+		delete(iour.userDatas, userData.id)
+		iour.userDataLock.Unlock()
+		return nil, err
+	}
+
+	return userData.result, nil
 }
 
 // SubmitRequests by Request functions and io results are notified via channel
-func (iour *IOURing) SubmitRequests(requests []Request, ch chan<- *Result) error {
+func (iour *IOURing) SubmitRequests(requests []Request, ch chan<- *Result) (*ResultGroup, error) {
 	// TODO(iceber): no length limit
 	if len(requests) > int(*iour.sq.entries) {
-		return errors.New("too many requests")
+		return nil, errors.New("too many requests")
 	}
 
 	iour.submitLock.Lock()
 	defer iour.submitLock.Unlock()
 
 	if iour.IsClosed() {
-		return ErrIOURingClosed
+		return nil, ErrIOURingClosed
 	}
 
 	var sqeN uint32
+	userDatas := make([]*UserData, 0, len(requests))
 	for _, request := range requests {
 		sqe := iour.getSQEntry()
 		sqeN++
 
-		if _, err := iour.doRequest(sqe, request, ch); err != nil {
+		userData, err := iour.doRequest(sqe, request, ch)
+		if err != nil {
 			iour.sq.fallback(sqeN)
-			return err
+			return nil, err
 		}
+		userDatas = append(userDatas, userData)
 	}
-	_, err := iour.submit()
-	return err
+
+	iour.userDataLock.Lock()
+	for _, data := range userDatas {
+		iour.userDatas[data.id] = data
+	}
+	iour.userDataLock.Unlock()
+
+	if _, err := iour.submit(); err != nil {
+		iour.userDataLock.Lock()
+		for _, data := range userDatas {
+			delete(iour.userDatas, data.id)
+		}
+		iour.userDataLock.Unlock()
+
+		return nil, err
+	}
+
+	return newResultGroup(userDatas), nil
 }
 
 func (iour *IOURing) needEnter(flags *uint32) bool {
@@ -319,13 +344,15 @@ func (iour *IOURing) run() {
 		delete(iour.userDatas, cqe.UserData)
 		iour.userDataLock.Unlock()
 
+		userData.result.complate(cqe)
+
 		// ignore link timeout
 		if userData.opcode == iouring_syscall.IORING_OP_LINK_TIMEOUT {
 			continue
 		}
 
 		if userData.resulter != nil {
-			userData.resulter <- userData.getResult(cqe)
+			userData.resulter <- userData.result
 		}
 	}
 }

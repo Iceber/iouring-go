@@ -17,7 +17,7 @@ func main() {
 
 	ch := make(chan *iouring.Result, 1)
 	request := iouring.Timeout(2 * time.Second)
-	err = iour.SubmitRequests(iouring.RequestWithTimeout(request, 1*time.Second), ch)
+	_, err = iour.SubmitRequests(iouring.RequestWithTimeout(request, 1*time.Second), ch)
 	if err != nil {
 		panic(err)
 	}

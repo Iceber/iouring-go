@@ -74,7 +74,7 @@ func main() {
 		reads++
 	}
 
-	if err := iour.SubmitRequests(iorequests, ch); err != nil {
+	if _, err := iour.SubmitRequests(iorequests, ch); err != nil {
 		panic(err)
 	}
 

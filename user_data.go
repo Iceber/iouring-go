@@ -4,8 +4,6 @@ package iouring
 
 import (
 	"unsafe"
-
-	iouring_syscall "github.com/iceber/iouring-go/syscall"
 )
 
 type UserData struct {
@@ -47,17 +45,10 @@ func (data *UserData) setOpcode(opcode uint8) {
 	data.result.opcode = opcode
 }
 
-func (data *UserData) getResult(cqe *iouring_syscall.CompletionQueueEvent) *Result {
-	data.result.id = data.id
-	data.result.res = cqe.Result
-
-	return data.result
-}
-
 func makeUserData(ch chan<- *Result) *UserData {
 	userData := &UserData{
 		resulter: ch,
-		result:   &Result{},
+		result:   &Result{done: make(chan struct{})},
 	}
 
 	userData.id = uint64(uintptr(unsafe.Pointer(userData)))

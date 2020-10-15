@@ -36,9 +36,8 @@ func readAndPrint(iour *iouring.IOURing, file *os.File) error {
 	size := stat.Size()
 	buffers := getBuffers(size)
 
-	compCh := make(chan *iouring.Result, 1)
-	_, err = iour.SubmitRequest(iouring.Readv(int(file.Fd()), buffers), compCh)
-	result := <-compCh
+	result, err := iour.SubmitRequest(iouring.Readv(int(file.Fd()), buffers), nil)
+	<-result.Done()
 	if err := result.Err(); err != nil {
 		return result.Err()
 	}

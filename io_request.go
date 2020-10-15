@@ -15,37 +15,37 @@ import (
 
 type Request func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData)
 
-func (iour *IOURing) Read(file *os.File, b []byte, ch chan<- *Result) (uint64, error) {
+func (iour *IOURing) Read(file *os.File, b []byte, ch chan<- *Result) (*Result, error) {
 	fd := int(file.Fd())
 	if fd < 0 {
-		return 0, errors.New("invalid file")
+		return nil, errors.New("invalid file")
 	}
 
 	return iour.SubmitRequest(Read(fd, b), ch)
 }
 
-func (iour *IOURing) Write(file *os.File, b []byte, ch chan<- *Result) (uint64, error) {
+func (iour *IOURing) Write(file *os.File, b []byte, ch chan<- *Result) (*Result, error) {
 	fd := int(file.Fd())
 	if fd < 0 {
-		return 0, errors.New("invalid file")
+		return nil, errors.New("invalid file")
 	}
 
 	return iour.SubmitRequest(Write(fd, b), ch)
 }
 
-func (iour *IOURing) Pread(file *os.File, b []byte, offset uint64, ch chan<- *Result) (uint64, error) {
+func (iour *IOURing) Pread(file *os.File, b []byte, offset uint64, ch chan<- *Result) (*Result, error) {
 	fd := int(file.Fd())
 	if fd < 0 {
-		return 0, errors.New("invalid file")
+		return nil, errors.New("invalid file")
 	}
 
 	return iour.SubmitRequest(Pread(fd, b, offset), ch)
 }
 
-func (iour *IOURing) Pwrite(file *os.File, b []byte, offset uint64, ch chan<- *Result) (uint64, error) {
+func (iour *IOURing) Pwrite(file *os.File, b []byte, offset uint64, ch chan<- *Result) (*Result, error) {
 	fd := int(file.Fd())
 	if fd < 0 {
-		return 0, errors.New("invalid file")
+		return nil, errors.New("invalid file")
 	}
 
 	return iour.SubmitRequest(Pwrite(fd, b, offset), ch)
