@@ -85,6 +85,27 @@ if err != nil {
 info, ok := result.GetRequestInfo().(string)
 ```
 
+# Cancel Request
+```
+request := iouring.Timeout(5 * time.Second)
+result, err := iour.SubmitRequest(request, nil)
+if err != nil {
+    panic(err)
+}
+
+if _, err := result.Cancel(); err != nil{
+    fmt.Printf("cancel request error: %v\n", err)
+    return
+}
+
+<- result.Done()
+if err := result.Err(); err != nil{
+    fmt.Printf("request error: %v\n", err)
+    return
+}
+```
+
+
 # Submit multitude request
 
 ```

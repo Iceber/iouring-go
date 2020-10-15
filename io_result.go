@@ -14,6 +14,9 @@ import (
 type ResultResolver func(result *Result)
 
 type Result struct {
+	iour *IOURing
+
+	id     uint64
 	opcode uint8
 	res    int32
 
@@ -54,12 +57,24 @@ func (result *Result) resolve() {
 
 func (result *Result) complate(cqe *iouring_syscall.CompletionQueueEvent) {
 	result.res = cqe.Result
+	result.iour = nil
 	close(result.done)
 
 	if result.group != nil {
 		result.group.complateOne()
 		result.group = nil
 	}
+}
+
+// Cancel request if request is not completed
+func (result *Result) Cancel() (*Result, error) {
+	select {
+	case <-result.done:
+		return nil, ErrRequestCompleted
+	default:
+	}
+
+	return result.iour.submitCancel(result.id)
 }
 
 func (result *Result) Done() <-chan struct{} {
@@ -124,6 +139,53 @@ func (result *Result) FreeRequestBuffer() {
 	result.b0 = nil
 	result.b1 = nil
 	result.bs = nil
+}
+
+type ResultGroup struct {
+	results []*Result
+
+	complates int32
+	done      chan struct{}
+}
+
+func newResultGroup(userData []*UserData) *ResultGroup {
+	group := &ResultGroup{
+		results: make([]*Result, len(userData)),
+		done:    make(chan struct{}),
+	}
+
+	for i, data := range userData {
+		group.results[i] = data.result
+		data.result.group = group
+	}
+	return group
+}
+
+func (group *ResultGroup) complateOne() {
+	if atomic.AddInt32(&group.complates, 1) == int32(len(group.results)) {
+		close(group.done)
+	}
+}
+
+func (group *ResultGroup) Len() int {
+	return len(group.results)
+}
+
+func (group *ResultGroup) Done() <-chan struct{} {
+	return group.done
+}
+
+func (group *ResultGroup) Results() []*Result {
+	return group.results
+}
+
+func (group *ResultGroup) ErrResults() (results []*Result) {
+	for _, result := range group.results {
+		if result.Err() != nil {
+			results = append(results, result)
+		}
+	}
+	return
 }
 
 func errResolver(result *Result) {
@@ -193,51 +255,4 @@ func cancelResolver(result *Result) {
 	if result.res == 0 {
 		result.r0 = RequestCanceledSuccessfully
 	}
-}
-
-type ResultGroup struct {
-	results []*Result
-
-	complates int32
-	done      chan struct{}
-}
-
-func newResultGroup(userData []*UserData) *ResultGroup {
-	group := &ResultGroup{
-		results: make([]*Result, len(userData)),
-		done:    make(chan struct{}),
-	}
-
-	for i, data := range userData {
-		group.results[i] = data.result
-		data.result.group = group
-	}
-	return group
-}
-
-func (group *ResultGroup) complateOne() {
-	if atomic.AddInt32(&group.complates, 1) == int32(len(group.results)) {
-		close(group.done)
-	}
-}
-
-func (group *ResultGroup) Len() int {
-	return len(group.results)
-}
-
-func (group *ResultGroup) Done() <-chan struct{} {
-	return group.done
-}
-
-func (group *ResultGroup) Results() []*Result {
-	return group.results
-}
-
-func (group *ResultGroup) ErrResults() (results []*Result) {
-	for _, result := range group.results {
-		if result.Err() != nil {
-			results = append(results, result)
-		}
-	}
-	return
 }

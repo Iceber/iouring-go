@@ -135,8 +135,7 @@ func (iour *IOURing) getSQEntry() *iouring_syscall.SubmissionQueueEntry {
 }
 
 func (iour *IOURing) doRequest(sqe *iouring_syscall.SubmissionQueueEntry, request Request, ch chan<- *Result) (*UserData, error) {
-	// TODO(iceber): use sync.Poll
-	userData := makeUserData(ch)
+	userData := makeUserData(iour, ch)
 
 	request(sqe, userData)
 	userData.setOpcode(sqe.Opcode())
@@ -282,14 +281,6 @@ func (iour *IOURing) submitAndWait(waitCount uint32) (submitted int, err error) 
 }
 */
 
-/*
-// CancelRequest by request id
-func (iour *IOURing) CancelRequest(id uint64, ch chan<- *Result) error {
-	_, err := iour.SubmitRequest(cancelRequest(id), ch)
-	return err
-}
-*/
-
 func (iour *IOURing) getCQEvent(wait bool) (cqe *iouring_syscall.CompletionQueueEvent, err error) {
 	var tryPeeks int
 	for {
@@ -357,6 +348,15 @@ func (iour *IOURing) run() {
 			userData.resulter <- userData.result
 		}
 	}
+}
+
+// Result submit cancel request
+func (iour *IOURing) submitCancel(id uint64) (*Result, error) {
+	if iour == nil {
+		return nil, ErrRequestCompleted
+	}
+
+	return iour.SubmitRequest(cancelRequest(id), nil)
 }
 
 func cancelRequest(id uint64) Request {

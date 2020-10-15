@@ -45,12 +45,14 @@ func (data *UserData) setOpcode(opcode uint8) {
 	data.result.opcode = opcode
 }
 
-func makeUserData(ch chan<- *Result) *UserData {
+// TODO(iceber): use sync.Poll
+func makeUserData(iour *IOURing, ch chan<- *Result) *UserData {
 	userData := &UserData{
 		resulter: ch,
-		result:   &Result{done: make(chan struct{})},
+		result:   &Result{iour: iour, done: make(chan struct{})},
 	}
 
 	userData.id = uint64(uintptr(unsafe.Pointer(userData)))
+	userData.result.id = userData.id
 	return userData
 }
