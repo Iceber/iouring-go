@@ -13,7 +13,7 @@ const readSize = 1024
 
 var (
 	iour     *iouring.IOURing
-	resulter chan *iouring.Result
+	resulter chan iouring.Result
 )
 
 func main() {
@@ -29,7 +29,7 @@ func main() {
 	}
 	defer iour.Close()
 
-	resulter = make(chan *iouring.Result, 10)
+	resulter = make(chan iouring.Result, 10)
 
 	fd := listenSocket(os.Args[1])
 	if _, err := iour.SubmitRequest(iouring.Accept(fd), resulter); err != nil {
@@ -58,7 +58,7 @@ func main() {
 	}
 }
 
-func accept(result *iouring.Result) {
+func accept(result iouring.Result) {
 	if err := result.Err(); err != nil {
 		panicf("accept error: %v", err)
 	}
@@ -70,13 +70,13 @@ func accept(result *iouring.Result) {
 	fmt.Printf("Client Conn: %s\n", clientAddr)
 
 	buffer := make([]byte, readSize)
-	request := iouring.RequestWithInfo(iouring.Read(connFd, buffer), clientAddr)
-	if _, err := iour.SubmitRequest(request, resulter); err != nil {
+	prep := iouring.Read(connFd, buffer).WithInfo(clientAddr)
+	if _, err := iour.SubmitRequest(prep, resulter); err != nil {
 		panicf("submit read request error: %v", err)
 	}
 }
 
-func read(result *iouring.Result) {
+func read(result iouring.Result) {
 	clientAddr := result.GetRequestInfo().(string)
 	if err := result.Err(); err != nil {
 		panicf("[%s] read error: %v", clientAddr, err)
@@ -84,30 +84,30 @@ func read(result *iouring.Result) {
 
 	num := result.ReturnValue0().(int)
 	buf, _ := result.GetRequestBuffer()
-	content := (*buf)[:num]
+	content := buf[:num]
 
 	connPrintf(clientAddr, "read byte: %v\ncontent: %s\n", num, content)
 
-	request := iouring.RequestWithInfo(iouring.Write(result.Fd(), content), clientAddr)
-	if _, err := iour.SubmitRequest(request, resulter); err != nil {
+	prep := iouring.Write(result.Fd(), content).WithInfo(clientAddr)
+	if _, err := iour.SubmitRequest(prep, resulter); err != nil {
 		panicf("[%s] submit write request error: %v", clientAddr, err)
 	}
 }
 
-func write(result *iouring.Result) {
+func write(result iouring.Result) {
 	clientAddr := result.GetRequestInfo().(string)
 	if err := result.Err(); err != nil {
 		panicf("[%s] write error: %v", clientAddr, err)
 	}
 	connPrintf(clientAddr, "write successful\n")
 
-	request := iouring.RequestWithInfo(iouring.Close(result.Fd()), clientAddr)
-	if _, err := iour.SubmitRequest(request, resulter); err != nil {
+	prep := iouring.Close(result.Fd()).WithInfo(clientAddr)
+	if _, err := iour.SubmitRequest(prep, resulter); err != nil {
 		panicf("[%s] submit write request error: %v", clientAddr, err)
 	}
 }
 
-func close(result *iouring.Result) {
+func close(result iouring.Result) {
 	clientAddr := result.GetRequestInfo().(string)
 	if err := result.Err(); err != nil {
 		panicf("[%s] close error: %v", clientAddr, err)

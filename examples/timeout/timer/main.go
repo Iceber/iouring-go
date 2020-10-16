@@ -16,10 +16,10 @@ func main() {
 
 	now := time.Now()
 
-	request2 := iouring.Timeout(2 * time.Second)
-	request1 := iouring.Timeout(5 * time.Second)
-	ch := make(chan *iouring.Result, 1)
-	if _, err := iour.SubmitRequests([]iouring.Request{request1, request2}, ch); err != nil {
+	prep1 := iouring.Timeout(2 * time.Second)
+	prep2 := iouring.Timeout(5 * time.Second)
+	ch := make(chan iouring.Result, 1)
+	if _, err := iour.SubmitRequests([]iouring.PrepRequest{prep1, prep2}, ch); err != nil {
 		panic(err)
 	}
 

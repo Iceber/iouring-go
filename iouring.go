@@ -134,7 +134,7 @@ func (iour *IOURing) getSQEntry() *iouring_syscall.SubmissionQueueEntry {
 	}
 }
 
-func (iour *IOURing) doRequest(sqe *iouring_syscall.SubmissionQueueEntry, request Request, ch chan<- *Result) (*UserData, error) {
+func (iour *IOURing) doRequest(sqe *iouring_syscall.SubmissionQueueEntry, request PrepRequest, ch chan<- Result) (*UserData, error) {
 	userData := makeUserData(iour, ch)
 
 	request(sqe, userData)
@@ -142,7 +142,7 @@ func (iour *IOURing) doRequest(sqe *iouring_syscall.SubmissionQueueEntry, reques
 
 	sqe.SetUserData(userData.id)
 
-	userData.result.fd = int(sqe.Fd())
+	userData.request.fd = int(sqe.Fd())
 	if sqe.Fd() >= 0 {
 		if index, ok := iour.fileRegister.GetFileIndex(int32(sqe.Fd())); ok {
 			sqe.SetFdIndex(int32(index))
@@ -159,7 +159,7 @@ func (iour *IOURing) doRequest(sqe *iouring_syscall.SubmissionQueueEntry, reques
 
 // SubmitRequest by Request function and io result is notified via channel
 // return request id, can be used to cancel a request
-func (iour *IOURing) SubmitRequest(request Request, ch chan<- *Result) (*Result, error) {
+func (iour *IOURing) SubmitRequest(request PrepRequest, ch chan<- Result) (Request, error) {
 	iour.submitLock.Lock()
 	defer iour.submitLock.Unlock()
 
@@ -185,11 +185,11 @@ func (iour *IOURing) SubmitRequest(request Request, ch chan<- *Result) (*Result,
 		return nil, err
 	}
 
-	return userData.result, nil
+	return userData.request, nil
 }
 
 // SubmitRequests by Request functions and io results are notified via channel
-func (iour *IOURing) SubmitRequests(requests []Request, ch chan<- *Result) (*ResultGroup, error) {
+func (iour *IOURing) SubmitRequests(requests []PrepRequest, ch chan<- Result) (RequestSet, error) {
 	// TODO(iceber): no length limit
 	if len(requests) > int(*iour.sq.entries) {
 		return nil, errors.New("too many requests")
@@ -232,7 +232,7 @@ func (iour *IOURing) SubmitRequests(requests []Request, ch chan<- *Result) (*Res
 		return nil, err
 	}
 
-	return newResultGroup(userDatas), nil
+	return newRequestSet(userDatas), nil
 }
 
 func (iour *IOURing) needEnter(flags *uint32) bool {
@@ -337,7 +337,7 @@ func (iour *IOURing) run() {
 		delete(iour.userDatas, cqe.UserData)
 		iour.userDataLock.Unlock()
 
-		userData.result.complate(cqe)
+		userData.request.complate(cqe)
 
 		// ignore link timeout
 		if userData.opcode == iouring_syscall.IORING_OP_LINK_TIMEOUT {
@@ -345,13 +345,13 @@ func (iour *IOURing) run() {
 		}
 
 		if userData.resulter != nil {
-			userData.resulter <- userData.result
+			userData.resulter <- userData.request
 		}
 	}
 }
 
 // Result submit cancel request
-func (iour *IOURing) submitCancel(id uint64) (*Result, error) {
+func (iour *IOURing) submitCancel(id uint64) (Request, error) {
 	if iour == nil {
 		return nil, ErrRequestCompleted
 	}
@@ -359,9 +359,9 @@ func (iour *IOURing) submitCancel(id uint64) (*Result, error) {
 	return iour.SubmitRequest(cancelRequest(id), nil)
 }
 
-func cancelRequest(id uint64) Request {
+func cancelRequest(id uint64) PrepRequest {
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
-		userData.result.resolver = cancelResolver
+		userData.request.resolver = cancelResolver
 		sqe.PrepOperation(iouring_syscall.IORING_OP_ASYNC_CANCEL, -1, id, 0, 0)
 	}
 }

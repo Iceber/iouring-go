@@ -53,8 +53,8 @@ func main() {
 	var writes int
 	var offset uint64
 
-	ch := make(chan *iouring.Result, entries)
-	iorequests := make([]iouring.Request, 0, entries)
+	ch := make(chan iouring.Result, entries)
+	prepRequests := make([]iouring.PrepRequest, 0, entries)
 	for size > 0 {
 		if reads >= int(entries) {
 			break
@@ -65,16 +65,15 @@ func main() {
 		}
 
 		b := make([]byte, readSize)
-		readRequest := iouring.Pread(int(src.Fd()), b, offset)
-		request := iouring.RequestWithInfo(readRequest, offset)
-		iorequests = append(iorequests, request)
+		prepRequest := iouring.Pread(int(src.Fd()), b, offset).WithInfo(offset)
+		prepRequests = append(prepRequests, prepRequest)
 
 		size -= readSize
 		offset += uint64(readSize)
 		reads++
 	}
 
-	if _, err := iour.SubmitRequests(iorequests, ch); err != nil {
+	if _, err := iour.SubmitRequests(prepRequests, ch); err != nil {
 		panic(err)
 	}
 
@@ -87,8 +86,8 @@ func main() {
 		if result.Opcode() == iouring.OpRead {
 			b, _ := result.GetRequestBuffer()
 			offset := result.GetRequestInfo().(uint64)
-			request := iouring.Pwrite(int(dest.Fd()), *b, offset)
-			if _, err := iour.SubmitRequest(request, ch); err != nil {
+			prep := iouring.Pwrite(int(dest.Fd()), b, offset)
+			if _, err := iour.SubmitRequest(prep, ch); err != nil {
 				panic(err)
 			}
 			writes++
@@ -105,9 +104,8 @@ func main() {
 		}
 
 		b, _ := result.GetRequestBuffer()
-		readRequest := iouring.Pread(int(src.Fd()), (*b)[:readSize], offset)
-		request := iouring.RequestWithInfo(readRequest, offset)
-		if _, err := iour.SubmitRequest(request, ch); err != nil {
+		prepRequest := iouring.Pread(int(src.Fd()), b[:readSize], offset).WithInfo(offset)
+		if _, err := iour.SubmitRequest(prepRequest, ch); err != nil {
 			panic(err)
 		}
 		size -= readSize

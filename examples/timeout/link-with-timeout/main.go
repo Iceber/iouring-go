@@ -16,11 +16,11 @@ func main() {
 
 	now := time.Now()
 
-	rs := iouring.RequestWithTimeout(iouring.Timeout(2*time.Second), 1*time.Second)
-	rs1 := iouring.RequestWithTimeout(iouring.Timeout(5*time.Second), 4*time.Second)
+	rs := iouring.Timeout(2 * time.Second).WithTimeout(1 * time.Second)
+	rs1 := iouring.Timeout(5 * time.Second).WithTimeout(4 * time.Second)
 	rs = append(rs, rs1...)
 
-	ch := make(chan *iouring.Result, 1)
+	ch := make(chan iouring.Result, 1)
 	if _, err := iour.SubmitLinkRequests(rs, ch); err != nil {
 		panic(err)
 	}

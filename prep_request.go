@@ -13,9 +13,17 @@ import (
 	iouring_syscall "github.com/iceber/iouring-go/syscall"
 )
 
-type Request func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData)
+type PrepRequest func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData)
 
-func (iour *IOURing) Read(file *os.File, b []byte, ch chan<- *Result) (*Result, error) {
+// WithInfo sdfdfdf
+func (prepReq PrepRequest) WithInfo(info interface{}) PrepRequest {
+	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
+		prepReq(sqe, userData)
+		userData.SetRequestInfo(info)
+	}
+}
+
+func (iour *IOURing) Read(file *os.File, b []byte, ch chan<- Result) (Request, error) {
 	fd := int(file.Fd())
 	if fd < 0 {
 		return nil, errors.New("invalid file")
@@ -24,7 +32,7 @@ func (iour *IOURing) Read(file *os.File, b []byte, ch chan<- *Result) (*Result, 
 	return iour.SubmitRequest(Read(fd, b), ch)
 }
 
-func (iour *IOURing) Write(file *os.File, b []byte, ch chan<- *Result) (*Result, error) {
+func (iour *IOURing) Write(file *os.File, b []byte, ch chan<- Result) (Request, error) {
 	fd := int(file.Fd())
 	if fd < 0 {
 		return nil, errors.New("invalid file")
@@ -33,7 +41,7 @@ func (iour *IOURing) Write(file *os.File, b []byte, ch chan<- *Result) (*Result,
 	return iour.SubmitRequest(Write(fd, b), ch)
 }
 
-func (iour *IOURing) Pread(file *os.File, b []byte, offset uint64, ch chan<- *Result) (*Result, error) {
+func (iour *IOURing) Pread(file *os.File, b []byte, offset uint64, ch chan<- Result) (Request, error) {
 	fd := int(file.Fd())
 	if fd < 0 {
 		return nil, errors.New("invalid file")
@@ -42,7 +50,7 @@ func (iour *IOURing) Pread(file *os.File, b []byte, offset uint64, ch chan<- *Re
 	return iour.SubmitRequest(Pread(fd, b, offset), ch)
 }
 
-func (iour *IOURing) Pwrite(file *os.File, b []byte, offset uint64, ch chan<- *Result) (*Result, error) {
+func (iour *IOURing) Pwrite(file *os.File, b []byte, offset uint64, ch chan<- Result) (Request, error) {
 	fd := int(file.Fd())
 	if fd < 0 {
 		return nil, errors.New("invalid file")
@@ -51,20 +59,13 @@ func (iour *IOURing) Pwrite(file *os.File, b []byte, offset uint64, ch chan<- *R
 	return iour.SubmitRequest(Pwrite(fd, b, offset), ch)
 }
 
-func RequestWithInfo(request Request, info interface{}) Request {
-	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
-		request(sqe, userData)
-		userData.SetRequestInfo(info)
-	}
-}
-
-func Nop() Request {
+func Nop() PrepRequest {
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		sqe.PrepOperation(iouring_syscall.IORING_OP_NOP, -1, 0, 0, 0)
 	}
 }
 
-func Read(fd int, b []byte) Request {
+func Read(fd int, b []byte) PrepRequest {
 	var bp unsafe.Pointer
 	if len(b) > 0 {
 		bp = unsafe.Pointer(&b[0])
@@ -73,8 +74,8 @@ func Read(fd int, b []byte) Request {
 	}
 
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
-		userData.result.resolver = fdResolver
-		userData.SetRequestBuffer(&b, nil)
+		userData.request.resolver = fdResolver
+		userData.SetRequestBuffer(b, nil)
 
 		sqe.PrepOperation(
 			iouring_syscall.IORING_OP_READ,
@@ -86,7 +87,7 @@ func Read(fd int, b []byte) Request {
 	}
 }
 
-func Pread(fd int, b []byte, offset uint64) Request {
+func Pread(fd int, b []byte, offset uint64) PrepRequest {
 	var bp unsafe.Pointer
 	if len(b) > 0 {
 		bp = unsafe.Pointer(&b[0])
@@ -95,8 +96,8 @@ func Pread(fd int, b []byte, offset uint64) Request {
 	}
 
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
-		userData.result.resolver = fdResolver
-		userData.SetRequestBuffer(&b, nil)
+		userData.request.resolver = fdResolver
+		userData.SetRequestBuffer(b, nil)
 
 		sqe.PrepOperation(
 			iouring_syscall.IORING_OP_READ,
@@ -108,7 +109,7 @@ func Pread(fd int, b []byte, offset uint64) Request {
 	}
 }
 
-func Write(fd int, b []byte) Request {
+func Write(fd int, b []byte) PrepRequest {
 	var bp unsafe.Pointer
 	if len(b) > 0 {
 		bp = unsafe.Pointer(&b[0])
@@ -117,8 +118,8 @@ func Write(fd int, b []byte) Request {
 	}
 
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
-		userData.result.resolver = fdResolver
-		userData.SetRequestBuffer(&b, nil)
+		userData.request.resolver = fdResolver
+		userData.SetRequestBuffer(b, nil)
 
 		sqe.PrepOperation(
 			iouring_syscall.IORING_OP_WRITE,
@@ -130,7 +131,7 @@ func Write(fd int, b []byte) Request {
 	}
 }
 
-func Pwrite(fd int, b []byte, offset uint64) Request {
+func Pwrite(fd int, b []byte, offset uint64) PrepRequest {
 	var bp unsafe.Pointer
 	if len(b) > 0 {
 		bp = unsafe.Pointer(&b[0])
@@ -139,8 +140,8 @@ func Pwrite(fd int, b []byte, offset uint64) Request {
 	}
 
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
-		userData.result.resolver = fdResolver
-		userData.SetRequestBuffer(&b, nil)
+		userData.request.resolver = fdResolver
+		userData.SetRequestBuffer(b, nil)
 
 		sqe.PrepOperation(
 			iouring_syscall.IORING_OP_WRITE,
@@ -152,7 +153,7 @@ func Pwrite(fd int, b []byte, offset uint64) Request {
 	}
 }
 
-func Readv(fd int, bs [][]byte) Request {
+func Readv(fd int, bs [][]byte) PrepRequest {
 	iovecs := bytes2iovec(bs)
 
 	var bp unsafe.Pointer
@@ -163,8 +164,8 @@ func Readv(fd int, bs [][]byte) Request {
 	}
 
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
-		userData.result.resolver = fdResolver
-		userData.SetRequestBuffers(&bs)
+		userData.request.resolver = fdResolver
+		userData.SetRequestBuffers(bs)
 
 		sqe.PrepOperation(
 			iouring_syscall.IORING_OP_READV,
@@ -176,7 +177,7 @@ func Readv(fd int, bs [][]byte) Request {
 	}
 }
 
-func Preadv(fd int, bs [][]byte, offset uint64) Request {
+func Preadv(fd int, bs [][]byte, offset uint64) PrepRequest {
 	iovecs := bytes2iovec(bs)
 
 	var bp unsafe.Pointer
@@ -187,8 +188,8 @@ func Preadv(fd int, bs [][]byte, offset uint64) Request {
 	}
 
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
-		userData.result.resolver = fdResolver
-		userData.SetRequestBuffers(&bs)
+		userData.request.resolver = fdResolver
+		userData.SetRequestBuffers(bs)
 
 		sqe.PrepOperation(iouring_syscall.IORING_OP_READV,
 			int32(fd),
@@ -199,7 +200,7 @@ func Preadv(fd int, bs [][]byte, offset uint64) Request {
 	}
 }
 
-func Writev(fd int, bs [][]byte) Request {
+func Writev(fd int, bs [][]byte) PrepRequest {
 	iovecs := bytes2iovec(bs)
 
 	var bp unsafe.Pointer
@@ -210,8 +211,8 @@ func Writev(fd int, bs [][]byte) Request {
 	}
 
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
-		userData.result.resolver = fdResolver
-		userData.SetRequestBuffers(&bs)
+		userData.request.resolver = fdResolver
+		userData.SetRequestBuffers(bs)
 
 		sqe.PrepOperation(
 			iouring_syscall.IORING_OP_WRITEV,
@@ -223,7 +224,7 @@ func Writev(fd int, bs [][]byte) Request {
 	}
 }
 
-func Pwritev(fd int, bs [][]byte, offset int64) Request {
+func Pwritev(fd int, bs [][]byte, offset int64) PrepRequest {
 	iovecs := bytes2iovec(bs)
 
 	var bp unsafe.Pointer
@@ -234,8 +235,8 @@ func Pwritev(fd int, bs [][]byte, offset int64) Request {
 	}
 
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
-		userData.result.resolver = fdResolver
-		userData.SetRequestBuffers(&bs)
+		userData.request.resolver = fdResolver
+		userData.SetRequestBuffers(bs)
 
 		sqe.PrepOperation(
 			iouring_syscall.IORING_OP_WRITEV,
@@ -247,7 +248,7 @@ func Pwritev(fd int, bs [][]byte, offset int64) Request {
 	}
 }
 
-func Send(sockfd int, b []byte, flags int) Request {
+func Send(sockfd int, b []byte, flags int) PrepRequest {
 	var bp unsafe.Pointer
 	if len(b) > 0 {
 		bp = unsafe.Pointer(&b[0])
@@ -256,7 +257,7 @@ func Send(sockfd int, b []byte, flags int) Request {
 	}
 
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
-		userData.SetRequestBuffer(&b, nil)
+		userData.SetRequestBuffer(b, nil)
 
 		sqe.PrepOperation(
 			iouring_syscall.IORING_OP_SEND,
@@ -269,7 +270,7 @@ func Send(sockfd int, b []byte, flags int) Request {
 	}
 }
 
-func Recv(sockfd int, b []byte, flags int) Request {
+func Recv(sockfd int, b []byte, flags int) PrepRequest {
 	var bp unsafe.Pointer
 	if len(b) > 0 {
 		bp = unsafe.Pointer(&b[0])
@@ -278,7 +279,7 @@ func Recv(sockfd int, b []byte, flags int) Request {
 	}
 
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
-		userData.SetRequestBuffer(&b, nil)
+		userData.SetRequestBuffer(b, nil)
 
 		sqe.PrepOperation(
 			iouring_syscall.IORING_OP_RECV,
@@ -291,7 +292,7 @@ func Recv(sockfd int, b []byte, flags int) Request {
 	}
 }
 
-func Sendmsg(sockfd int, p, oob []byte, to syscall.Sockaddr, flags int) (Request, error) {
+func Sendmsg(sockfd int, p, oob []byte, to syscall.Sockaddr, flags int) (PrepRequest, error) {
 	var ptr unsafe.Pointer
 	var salen uint32
 	if to != nil {
@@ -330,7 +331,8 @@ func Sendmsg(sockfd int, p, oob []byte, to syscall.Sockaddr, flags int) (Request
 	msg.Iov = &iov
 	msg.Iovlen = 1
 
-	resolver := func(result *Result) {
+	resolver := func(req Request) {
+		result := req.(*request)
 		result.r0 = int(result.res)
 		errResolver(result)
 		if result.err != nil {
@@ -345,15 +347,15 @@ func Sendmsg(sockfd int, p, oob []byte, to syscall.Sockaddr, flags int) (Request
 	msgptr := unsafe.Pointer(msg)
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		userData.hold(msg, to)
-		userData.result.resolver = resolver
-		userData.SetRequestBuffer(&p, &oob)
+		userData.request.resolver = resolver
+		userData.SetRequestBuffer(p, oob)
 
 		sqe.PrepOperation(iouring_syscall.IORING_OP_SENDMSG, int32(sockfd), uint64(uintptr(msgptr)), 1, 0)
 		sqe.SetOpFlags(uint32(flags))
 	}, nil
 }
 
-func Recvmsg(sockfd int, p, oob []byte, to syscall.Sockaddr, flags int) (Request, error) {
+func Recvmsg(sockfd int, p, oob []byte, to syscall.Sockaddr, flags int) (PrepRequest, error) {
 	var msg syscall.Msghdr
 	var rsa syscall.RawSockaddrAny
 	msg.Name = (*byte)(unsafe.Pointer(&rsa))
@@ -383,7 +385,8 @@ func Recvmsg(sockfd int, p, oob []byte, to syscall.Sockaddr, flags int) (Request
 	msg.Iov = &iov
 	msg.Iovlen = 1
 
-	resolver := func(result *Result) {
+	resolver := func(req Request) {
+		result := req.(*request)
 		result.r0 = int(result.res)
 		errResolver(result)
 		if result.err != nil {
@@ -397,8 +400,8 @@ func Recvmsg(sockfd int, p, oob []byte, to syscall.Sockaddr, flags int) (Request
 
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		userData.hold(&msg, &rsa)
-		userData.result.resolver = resolver
-		userData.SetRequestBuffer(&p, &oob)
+		userData.request.resolver = resolver
+		userData.SetRequestBuffer(p, oob)
 
 		sqe.PrepOperation(
 			iouring_syscall.IORING_OP_RECVMSG,
@@ -411,11 +414,12 @@ func Recvmsg(sockfd int, p, oob []byte, to syscall.Sockaddr, flags int) (Request
 	}, nil
 }
 
-func Accept(sockfd int) Request {
+func Accept(sockfd int) PrepRequest {
 	var rsa syscall.RawSockaddrAny
 	var len uint32 = syscall.SizeofSockaddrAny
 
-	resolver := func(result *Result) {
+	resolver := func(req Request) {
+		result := req.(*request)
 		fd := int(result.res)
 		errResolver(result)
 		if result.err != nil {
@@ -432,16 +436,17 @@ func Accept(sockfd int) Request {
 
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		userData.hold(&len)
-		userData.result.resolver = resolver
+		userData.request.resolver = resolver
 		sqe.PrepOperation(iouring_syscall.IORING_OP_ACCEPT, int32(sockfd), uint64(uintptr(unsafe.Pointer(&rsa))), 0, uint64(uintptr(unsafe.Pointer(&len))))
 	}
 }
 
-func Accept4(sockfd int, flags int) Request {
+func Accept4(sockfd int, flags int) PrepRequest {
 	var rsa syscall.RawSockaddrAny
 	var len uint32 = syscall.SizeofSockaddrAny
 
-	resolver := func(result *Result) {
+	resolver := func(req Request) {
+		result := req.(*request)
 		fd := int(result.res)
 		errResolver(result)
 		if result.err != nil {
@@ -461,7 +466,7 @@ func Accept4(sockfd int, flags int) Request {
 	}
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		userData.hold(&rsa, &len)
-		userData.result.resolver = resolver
+		userData.request.resolver = resolver
 
 		sqe.PrepOperation(
 			iouring_syscall.IORING_OP_ACCEPT,
@@ -474,7 +479,7 @@ func Accept4(sockfd int, flags int) Request {
 	}
 }
 
-func Connect(sockfd int, sa syscall.Sockaddr) (Request, error) {
+func Connect(sockfd int, sa syscall.Sockaddr) (PrepRequest, error) {
 	ptr, n, err := sockaddr(sa)
 	if err != nil {
 		return nil, err
@@ -482,7 +487,7 @@ func Connect(sockfd int, sa syscall.Sockaddr) (Request, error) {
 
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		userData.hold(sa)
-		userData.result.resolver = errResolver
+		userData.request.resolver = errResolver
 
 		sqe.PrepOperation(
 			iouring_syscall.IORING_OP_CONNECT,
@@ -494,7 +499,7 @@ func Connect(sockfd int, sa syscall.Sockaddr) (Request, error) {
 	}, nil
 }
 
-func Openat(dirfd int, path string, flags uint32, mode uint32) (Request, error) {
+func Openat(dirfd int, path string, flags uint32, mode uint32) (PrepRequest, error) {
 	flags |= syscall.O_LARGEFILE
 	b, err := syscall.ByteSliceFromString(path)
 	if err != nil {
@@ -504,7 +509,7 @@ func Openat(dirfd int, path string, flags uint32, mode uint32) (Request, error) 
 	bp := unsafe.Pointer(&b[0])
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		userData.hold(&b)
-		userData.result.resolver = fdResolver
+		userData.request.resolver = fdResolver
 
 		sqe.PrepOperation(
 			iouring_syscall.IORING_OP_OPENAT,
@@ -517,7 +522,7 @@ func Openat(dirfd int, path string, flags uint32, mode uint32) (Request, error) 
 	}, nil
 }
 
-func Openat2(dirfd int, path string, how *unix.OpenHow) (Request, error) {
+func Openat2(dirfd int, path string, how *unix.OpenHow) (PrepRequest, error) {
 	b, err := syscall.ByteSliceFromString(path)
 	if err != nil {
 		return nil, err
@@ -526,7 +531,7 @@ func Openat2(dirfd int, path string, how *unix.OpenHow) (Request, error) {
 	bp := unsafe.Pointer(&b[0])
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		userData.hold(&b)
-		userData.result.resolver = fdResolver
+		userData.request.resolver = fdResolver
 
 		sqe.PrepOperation(
 			iouring_syscall.IORING_OP_OPENAT2,
@@ -538,7 +543,7 @@ func Openat2(dirfd int, path string, how *unix.OpenHow) (Request, error) {
 	}, nil
 }
 
-func Statx(dirfd int, path string, flags uint32, mask int, stat *unix.Statx_t) (Request, error) {
+func Statx(dirfd int, path string, flags uint32, mask int, stat *unix.Statx_t) (PrepRequest, error) {
 	b, err := syscall.ByteSliceFromString(path)
 	if err != nil {
 		return nil, err
@@ -546,7 +551,7 @@ func Statx(dirfd int, path string, flags uint32, mask int, stat *unix.Statx_t) (
 
 	bp := unsafe.Pointer(&b[0])
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
-		userData.result.resolver = errResolver
+		userData.request.resolver = errResolver
 		userData.hold(&b, stat)
 
 		sqe.PrepOperation(
@@ -560,24 +565,24 @@ func Statx(dirfd int, path string, flags uint32, mask int, stat *unix.Statx_t) (
 	}, nil
 }
 
-func Fsync(fd int) Request {
+func Fsync(fd int) PrepRequest {
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
-		userData.result.resolver = errResolver
+		userData.request.resolver = errResolver
 		sqe.PrepOperation(iouring_syscall.IORING_OP_FSYNC, int32(fd), 0, 0, 0)
 	}
 }
 
-func Fdatasync(fd int) Request {
+func Fdatasync(fd int) PrepRequest {
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
-		userData.result.resolver = errResolver
+		userData.request.resolver = errResolver
 		sqe.PrepOperation(iouring_syscall.IORING_OP_FSYNC, int32(fd), 0, 0, 0)
 		sqe.SetOpFlags(iouring_syscall.IORING_FSYNC_DATASYNC)
 	}
 }
 
-func Fallocate(fd int, mode uint32, off int64, length int64) Request {
+func Fallocate(fd int, mode uint32, off int64, length int64) PrepRequest {
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
-		userData.result.resolver = errResolver
+		userData.request.resolver = errResolver
 
 		sqe.PrepOperation(
 			iouring_syscall.IORING_OP_FALLOCATE,
@@ -589,14 +594,14 @@ func Fallocate(fd int, mode uint32, off int64, length int64) Request {
 	}
 }
 
-func Close(fd int) Request {
+func Close(fd int) PrepRequest {
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
-		userData.result.resolver = errResolver
+		userData.request.resolver = errResolver
 		sqe.PrepOperation(iouring_syscall.IORING_OP_CLOSE, int32(fd), 0, 0, 0)
 	}
 }
 
-func Madvise(b []byte, advice int) Request {
+func Madvise(b []byte, advice int) PrepRequest {
 	var bp unsafe.Pointer
 	if len(b) > 0 {
 		bp = unsafe.Pointer(&b[0])
@@ -604,8 +609,8 @@ func Madvise(b []byte, advice int) Request {
 		bp = unsafe.Pointer(&_zero)
 	}
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
-		userData.result.resolver = errResolver
-		userData.SetRequestBuffer(&b, nil)
+		userData.request.resolver = errResolver
+		userData.SetRequestBuffer(b, nil)
 
 		sqe.PrepOperation(
 			iouring_syscall.IORING_OP_MADVISE,
@@ -618,9 +623,9 @@ func Madvise(b []byte, advice int) Request {
 	}
 }
 
-func EpollCtl(epfd int, op int, fd int, event *syscall.EpollEvent) Request {
+func EpollCtl(epfd int, op int, fd int, event *syscall.EpollEvent) PrepRequest {
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
-		userData.result.resolver = errResolver
+		userData.request.resolver = errResolver
 
 		sqe.PrepOperation(
 			iouring_syscall.IORING_OP_EPOLL_CTL,

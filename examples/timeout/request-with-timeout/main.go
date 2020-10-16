@@ -15,9 +15,9 @@ func main() {
 	defer iour.Close()
 	now := time.Now()
 
-	ch := make(chan *iouring.Result, 1)
-	request := iouring.Timeout(2 * time.Second)
-	_, err = iour.SubmitRequests(iouring.RequestWithTimeout(request, 1*time.Second), ch)
+	ch := make(chan iouring.Result, 1)
+	prepRequests := iouring.Timeout(2 * time.Second).WithTimeout(1 * time.Second)
+	_, err = iour.SubmitRequests(prepRequests, ch)
 	if err != nil {
 		panic(err)
 	}

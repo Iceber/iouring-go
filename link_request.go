@@ -12,15 +12,15 @@ import (
 	iouring_syscall "github.com/iceber/iouring-go/syscall"
 )
 
-func (iour *IOURing) SubmitLinkRequests(requests []Request, ch chan<- *Result) (*ResultGroup, error) {
+func (iour *IOURing) SubmitLinkRequests(requests []PrepRequest, ch chan<- Result) (RequestSet, error) {
 	return iour.submitLinkRequest(requests, ch, false)
 }
 
-func (iour *IOURing) SubmitHardLinkRequests(requests []Request, ch chan<- *Result) (*ResultGroup, error) {
+func (iour *IOURing) SubmitHardLinkRequests(requests []PrepRequest, ch chan<- Result) (RequestSet, error) {
 	return iour.submitLinkRequest(requests, ch, true)
 }
 
-func (iour *IOURing) submitLinkRequest(requests []Request, ch chan<- *Result, hard bool) (*ResultGroup, error) {
+func (iour *IOURing) submitLinkRequest(requests []PrepRequest, ch chan<- Result, hard bool) (RequestSet, error) {
 	// TODO(iceber): no length limit
 	if len(requests) > int(*iour.sq.entries) {
 		return nil, errors.New("too many requests")
@@ -73,15 +73,15 @@ func (iour *IOURing) submitLinkRequest(requests []Request, ch chan<- *Result, ha
 		return nil, err
 	}
 
-	return newResultGroup(userDatas), nil
+	return newRequestSet(userDatas), nil
 }
 
-func linkTimeout(t time.Duration) Request {
+func linkTimeout(t time.Duration) PrepRequest {
 	timespec := unix.NsecToTimespec(t.Nanoseconds())
 
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		userData.hold(&timespec)
-		userData.result.resolver = timeoutResolver
+		userData.request.resolver = timeoutResolver
 
 		sqe.PrepOperation(iouring_syscall.IORING_OP_LINK_TIMEOUT, -1, uint64(uintptr(unsafe.Pointer(&timespec))), 1, 0)
 	}

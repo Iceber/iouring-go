@@ -9,27 +9,27 @@ import (
 type UserData struct {
 	id uint64
 
-	resulter chan<- *Result
+	resulter chan<- Result
 	opcode   uint8
 
-	holds  []interface{}
-	result *Result
+	holds   []interface{}
+	request *request
 }
 
 func (data *UserData) SetResultResolver(resolver ResultResolver) {
-	data.result.resolver = resolver
+	data.request.resolver = resolver
 }
 
 func (data *UserData) SetRequestInfo(info interface{}) {
-	data.result.requestInfo = info
+	data.request.requestInfo = info
 }
 
-func (data *UserData) SetRequestBuffer(b0, b1 *[]byte) {
-	data.result.b0, data.result.b1 = b0, b1
+func (data *UserData) SetRequestBuffer(b0, b1 []byte) {
+	data.request.b0, data.request.b1 = b0, b1
 }
 
-func (data *UserData) SetRequestBuffers(bs *[][]byte) {
-	data.result.bs = bs
+func (data *UserData) SetRequestBuffers(bs [][]byte) {
+	data.request.bs = bs
 }
 
 func (data *UserData) Hold(vars ...interface{}) {
@@ -42,17 +42,17 @@ func (data *UserData) hold(vars ...interface{}) {
 
 func (data *UserData) setOpcode(opcode uint8) {
 	data.opcode = opcode
-	data.result.opcode = opcode
+	data.request.opcode = opcode
 }
 
 // TODO(iceber): use sync.Poll
-func makeUserData(iour *IOURing, ch chan<- *Result) *UserData {
+func makeUserData(iour *IOURing, ch chan<- Result) *UserData {
 	userData := &UserData{
 		resulter: ch,
-		result:   &Result{iour: iour, done: make(chan struct{})},
+		request:  &request{iour: iour, done: make(chan struct{})},
 	}
 
 	userData.id = uint64(uintptr(unsafe.Pointer(userData)))
-	userData.result.id = userData.id
+	userData.request.id = userData.id
 	return userData
 }

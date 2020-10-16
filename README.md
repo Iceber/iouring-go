@@ -56,8 +56,8 @@ func main() {
 
         ch := make(chan *iouring.Result, 1)
 
-        request := iouring.Write(int(file.Fd()), []byte(str))
-        if _, err := iour.SubmitRequest(request, ch); err != nil {
+        prepRequest := iouring.Write(int(file.Fd()), []byte(str))
+        if _, err := iour.SubmitRequest(prepRequest, ch); err != nil {
                 panic(err)
         }
 
@@ -74,32 +74,36 @@ func main() {
 
 # Request With Extra Info
 ```
-request := iouring.RequestWithInfo(iouring.Write(int(file.Fd()), []byte(str)), file.Name())
+prepRequest := iouring.Write(int(file.Fd()), []byte(str)).WithInfo(file.Name())
 
-result, err := iour.SubmitRequest(request, nil)
+request, err := iour.SubmitRequest(prepRequest, nil)
 if err != nil {
     panic(err)
 }
 
-<- result.Done()
-info, ok := result.GetRequestInfo().(string)
+<- request.Done()
+info, ok := request.GetRequestInfo().(string)
 ```
 
 # Cancel Request
 ```
-request := iouring.Timeout(5 * time.Second)
-result, err := iour.SubmitRequest(request, nil)
+prepR := iouring.Timeout(5 * time.Second)
+request, err := iour.SubmitRequest(prepR, nil)
 if err != nil {
     panic(err)
 }
 
-if _, err := result.Cancel(); err != nil{
+if _, err := request.Cancel(); err != nil{
     fmt.Printf("cancel request error: %v\n", err)
     return
 }
 
-<- result.Done()
-if err := result.Err(); err != nil{
+<- request.Done()
+if err := request.Err(); err != nil{
+    if err == iouring.ErrRequestCanceled{
+        fmt.Println("request is canceled"0
+        return
+    }
     fmt.Printf("request error: %v\n", err)
     return
 }
@@ -111,17 +115,17 @@ if err := result.Err(); err != nil{
 ```
 var offset uint64
 buf1 := make([]byte, 1024)
-request1 := iouring.Pread(fd, buf1, offset)
+prep1:= iouring.Pread(fd, buf1, offset)
 
 offset += 1024
 buf2 := make([]byte, 1024)
-request2 := iouring.Pread(fd, buf1, offset)
+prep2:= iouring.Pread(fd, buf1, offset)
 
-results, err := iour.SubmitRequests([]iouring.Request{request1, request2}, nil)
+requests, err := iour.SubmitRequests([]iouring.PrepRequest{prep1,prep2}, nil)
 if err != nil{
     panic(err)
 }
-<- results.Done()
+<- requests.Done()
 fmt.Println("requests are completed")
 ```
 requests is concurrent execution
@@ -130,10 +134,10 @@ requests is concurrent execution
 ```
 var offset uint64
 buf := make([]byte, 1024)
-request1 := iouring.Pread(fd, buf1, offset)
-request2 := iouring.Write(int(os.Stdout.Fd()), buf)
+prep1 := iouring.Pread(fd, buf1, offset)
+prep2 := iouring.Write(int(os.Stdout.Fd()), buf)
 
-iour.SubmitLinkRequests([]iouring.Request{request1, request2}, nil)
+iour.SubmitLinkRequests([]iouring.PrepRequest{prep1, prep2}, nil)
 ```
 
 # Examples

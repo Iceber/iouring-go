@@ -26,20 +26,20 @@ func main() {
 		panic(err)
 	}
 
-	writeRequest1 := iouring.RequestWithInfo(iouring.Write(int(file.Fd()), []byte(str1)), "write str1")
-	writeRequest2 := iouring.RequestWithInfo(iouring.Pwrite(int(file.Fd()), []byte(str2), uint64(len(str1))), "write str2")
+	prepWrite1 := iouring.Write(int(file.Fd()), []byte(str1)).WithInfo("write str1")
+	prepWrite2 := iouring.Pwrite(int(file.Fd()), []byte(str2), uint64(len(str1))).WithInfo("write str2")
 
 	buffer := make([]byte, len(str1)+len(str2))
-	readRequest1 := iouring.RequestWithInfo(iouring.Read(int(file.Fd()), buffer), "read fd to buffer")
-	readRequest2 := iouring.RequestWithInfo(iouring.Write(int(os.Stdout.Fd()), buffer), "read buffer to stdout")
+	prepRead1 := iouring.Read(int(file.Fd()), buffer).WithInfo("read fd to buffer")
+	prepRead2 := iouring.Write(int(os.Stdout.Fd()), buffer).WithInfo("read buffer to stdout")
 
-	ch := make(chan *iouring.Result, 4)
+	ch := make(chan iouring.Result, 4)
 	_, err = iour.SubmitLinkRequests(
-		[]iouring.Request{
-			writeRequest1,
-			writeRequest2,
-			readRequest1,
-			readRequest2,
+		[]iouring.PrepRequest{
+			prepWrite1,
+			prepWrite2,
+			prepRead1,
+			prepRead2,
 		},
 		ch,
 	)

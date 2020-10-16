@@ -20,7 +20,7 @@ func main() {
 	}
 	defer iour.Close()
 
-	compCh := make(chan *iouring.Result, 1)
+	compCh := make(chan iouring.Result, 1)
 
 	go func() {
 		for _, filename := range os.Args[1:] {
@@ -44,7 +44,7 @@ func main() {
 		}
 
 		fmt.Printf("%s: \n", filename)
-		for _, buffer := range *result.GetRequestBuffers() {
+		for _, buffer := range result.GetRequestBuffers() {
 			fmt.Printf("%s", buffer)
 		}
 		fmt.Println()
@@ -58,7 +58,7 @@ func main() {
 	fmt.Println("cat successful")
 }
 
-func read(iour *iouring.IOURing, file *os.File, ch chan *iouring.Result) error {
+func read(iour *iouring.IOURing, file *os.File, ch chan iouring.Result) error {
 	stat, err := file.Stat()
 	if err != nil {
 		return err
@@ -78,7 +78,7 @@ func read(iour *iouring.IOURing, file *os.File, ch chan *iouring.Result) error {
 		buffers[blocks-1] = buffers[blocks-1][:size%blockSize]
 	}
 
-	request := iouring.RequestWithInfo(iouring.Readv(int(file.Fd()), buffers), file.Name())
-	_, err = iour.SubmitRequest(request, ch)
+	prepRequest := iouring.Readv(int(file.Fd()), buffers).WithInfo(file.Name())
+	_, err = iour.SubmitRequest(prepRequest, ch)
 	return err
 }

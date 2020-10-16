@@ -36,14 +36,14 @@ func readAndPrint(iour *iouring.IOURing, file *os.File) error {
 	size := stat.Size()
 	buffers := getBuffers(size)
 
-	result, err := iour.SubmitRequest(iouring.Readv(int(file.Fd()), buffers), nil)
-	<-result.Done()
-	if err := result.Err(); err != nil {
-		return result.Err()
+	request, err := iour.SubmitRequest(iouring.Readv(int(file.Fd()), buffers), nil)
+	<-request.Done()
+	if err := request.Err(); err != nil {
+		return request.Err()
 	}
 
 	fmt.Println(file.Name(), ":")
-	for _, buffer := range *result.GetRequestBuffers() {
+	for _, buffer := range request.GetRequestBuffers() {
 		fmt.Printf("%s", buffer)
 	}
 	fmt.Println()
