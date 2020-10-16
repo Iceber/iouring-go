@@ -30,7 +30,7 @@ go get github.com/iceber/iouring-go
 [doc](https://pkg.go.dev/github.com/iceber/iouring-go)
 
 # Quickstart
-```
+```golang
 package main
 
 import (
@@ -73,7 +73,7 @@ func main() {
 ```
 
 # Request With Extra Info
-```
+```golang
 prepRequest := iouring.Write(int(file.Fd()), []byte(str)).WithInfo(file.Name())
 
 request, err := iour.SubmitRequest(prepRequest, nil)
@@ -86,7 +86,7 @@ info, ok := request.GetRequestInfo().(string)
 ```
 
 # Cancel Request
-```
+```golang
 prepR := iouring.Timeout(5 * time.Second)
 request, err := iour.SubmitRequest(prepR, nil)
 if err != nil {
@@ -112,7 +112,7 @@ if err := request.Err(); err != nil{
 
 # Submit multitude request
 
-```
+```golang
 var offset uint64
 buf1 := make([]byte, 1024)
 prep1:= iouring.Pread(fd, buf1, offset)
@@ -131,7 +131,7 @@ fmt.Println("requests are completed")
 requests is concurrent execution
 
 # Link request
-```
+```golang
 var offset uint64
 buf := make([]byte, 1024)
 prep1 := iouring.Pread(fd, buf1, offset)
