@@ -81,6 +81,12 @@ func New(entries uint, opts ...IOURingOption) (iour *IOURing, err error) {
 	return iour, nil
 }
 
+// Size iouring submission queue size
+func (iour *IOURing) Size() int {
+	return int(*iour.sq.entries)
+}
+
+// Close IOURing
 func (iour *IOURing) Close() error {
 	iour.submitLock.Lock()
 	defer iour.submitLock.Unlock()
@@ -115,6 +121,7 @@ func (iour *IOURing) Close() error {
 	return nil
 }
 
+// IsClosed IOURing is closed
 func (iour *IOURing) IsClosed() (closed bool) {
 	select {
 	case <-iour.closer:
