@@ -25,6 +25,11 @@ var (
 )
 
 func initpoller() error {
+	// fast path
+	if poller != nil {
+		return nil
+	}
+
 	initpollerLock.Lock()
 	defer initpollerLock.Unlock()
 	if poller != nil {
