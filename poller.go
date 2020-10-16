@@ -26,7 +26,7 @@ var (
 
 func initpoller() error {
 	initpollerLock.Lock()
-	initpollerLock.Unlock()
+	defer initpollerLock.Unlock()
 	if poller != nil {
 		return nil
 	}
