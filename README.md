@@ -54,7 +54,7 @@ func main() {
                 panic(err)
         }
 
-        ch := make(chan *iouring.Result, 1)
+        ch := make(chan iouring.Result, 1)
 
         prepRequest := iouring.Write(int(file.Fd()), []byte(str))
         if _, err := iour.SubmitRequest(prepRequest, ch); err != nil {
