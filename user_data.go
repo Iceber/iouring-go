@@ -24,6 +24,10 @@ func (data *UserData) SetRequestInfo(info interface{}) {
 	data.request.requestInfo = info
 }
 
+func (data *UserData) SetRequestCallback(callback RequestCallback) {
+	data.request.callback = callback
+}
+
 func (data *UserData) SetRequestBuffer(b0, b1 []byte) {
 	data.request.b0, data.request.b1 = b0, b1
 }

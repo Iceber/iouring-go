@@ -11,6 +11,7 @@ var (
 	ErrRequestNotFound     = errors.New("request is not found")
 	ErrRequestCompleted    = errors.New("request has already been completed")
 	ErrRequestNotCompleted = errors.New("request is not completed")
+	ErrNoRequestCallback   = errors.New("no request callback")
 
 	ErrUnregisteredFile = errors.New("file is unregistered")
 )

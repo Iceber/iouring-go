@@ -13,6 +13,8 @@ import (
 
 type ResultResolver func(req Request)
 
+type RequestCallback func(result Result) error
+
 type Request interface {
 	Result
 
@@ -37,6 +39,8 @@ type Result interface {
 	ReturnValue1() interface{}
 	ReturnFd() (int, error)
 	ReturnInt() (int, error)
+
+	Callback() error
 }
 
 var _ Request = &request{}
@@ -51,6 +55,8 @@ type request struct {
 	once      sync.Once
 	resolving bool
 	resolver  ResultResolver
+
+	callback RequestCallback
 
 	fd int
 	b0 []byte
@@ -105,6 +111,18 @@ func (req *request) isDone() bool {
 	default:
 	}
 	return false
+}
+
+func (req *request) Callback() error {
+	if !req.isDone() {
+		return ErrRequestCompleted
+	}
+
+	if req.callback == nil {
+		return ErrNoRequestCallback
+	}
+
+	return req.callback(req)
 }
 
 // Cancel request if request is not completed

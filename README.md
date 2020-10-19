@@ -157,6 +157,8 @@ iour.SubmitLinkRequests([]iouring.PrepRequest{prep1, prep2}, nil)
 
 [echo](https://github.com/Iceber/iouring-go/tree/main/examples/echo)
 
+[echo-with-callback](https://github.com/Iceber/iouring-go/tree/main/examples/echo-with-callback)
+
 # TODO
 * add tests
 * arguments type (eg. int and int32)
