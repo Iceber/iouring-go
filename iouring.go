@@ -300,6 +300,15 @@ func (iour *IOURing) getCQEvent(wait bool) (cqe *iouring_syscall.CompletionQueue
 			err = syscall.EAGAIN
 			return
 		}
+
+		if iour.sq.cqOverflow() {
+			_, err = iouring_syscall.IOURingEnter(iour.fd, 0, 0, iouring_syscall.IORING_ENTER_FLAGS_GETEVENTS, nil)
+			if err != nil {
+				return
+			}
+			continue
+		}
+
 		if tryPeeks++; tryPeeks < 3 {
 			runtime.Gosched()
 			continue
@@ -310,13 +319,6 @@ func (iour *IOURing) getCQEvent(wait bool) (cqe *iouring_syscall.CompletionQueue
 		case <-iour.closer:
 			return nil, ErrIOURingClosed
 		}
-
-		/*
-			_, err = iouring_syscall.IOURingEnter(iour.fd, 0, 1, iouring_syscall.IORING_ENTER_FLAGS_GETEVENTS, nil)
-			if err != nil {
-				return
-			}
-		*/
 	}
 }
 
