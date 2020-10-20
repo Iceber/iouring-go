@@ -9,15 +9,16 @@ import (
 )
 
 const (
-	IORING_SETUP_FLAGS_IOPOLL uint32 = 1 << iota
-	IORING_SETUP_FLAGS_SQPOLL
-	IORING_SETUP_FLAGS_SQ_AFF
-	IORING_SETUP_FLAGS_CQSIZE
-	IORING_SETUP_FLAGS_CLAMP
-	IORING_SETUP_FLAGS_ATTACH_WQ
-	IORING_SETUP_FLAGS_R_DISABLED
+	IORING_SETUP_IOPOLL uint32 = 1 << iota
+	IORING_SETUP_SQPOLL
+	IORING_SETUP_SQ_AFF
+	IORING_SETUP_CQSIZE
+	IORING_SETUP_CLAMP
+	IORING_SETUP_ATTACH_WQ
+	IORING_SETUP_R_DISABLED
 )
 
+// io_uring features supported by current kernel version
 const (
 	IORING_FEAT_SINGLE_MMAP uint32 = 1 << iota
 	IORING_FEAT_NODROP
@@ -29,20 +30,22 @@ const (
 	IORING_FEAT_SQPOLL_NONFIXED
 )
 
+// IOURingParams the flags, sq_thread_cpu, sq_thread_idle and WQFd fields are used to configure the io_uring instance
 type IOURingParams struct {
-	SQEntries    uint32
-	CQEntries    uint32
-	Flags        uint32
-	SQThreadCPU  uint32
-	SQThreadIdle uint32
+	SQEntries    uint32 // specifies the number of submission queue entries allocated
+	CQEntries    uint32 // when IORING_SETUP_CQSIZE flag is specified
+	Flags        uint32 // a bit mast of 0 or more of the IORING_SETUP_*
+	SQThreadCPU  uint32 // when IORING_SETUP_SQPOLL and IORING_SETUP_SQ_AFF flags are specified
+	SQThreadIdle uint32 // when IORING_SETUP_SQPOLL flag is specified
 	Features     uint32
-	WQFd         uint32
+	WQFd         uint32 // when IORING_SETUP_ATTACH_WQ flag is specified
 	Resv         [3]uint32
 
 	SQOffset SubmissionQueueRingOffset
 	CQOffset CompletionQueueRingOffset
 }
 
+// SubmissionQueueRingOffset describes the offsets of various ring buffer fields
 type SubmissionQueueRingOffset struct {
 	Head        uint32
 	Tail        uint32
@@ -55,6 +58,7 @@ type SubmissionQueueRingOffset struct {
 	Resv2       uint32
 }
 
+// CompletionQueueRingOffset describes the offsets of various ring buffer fields
 type CompletionQueueRingOffset struct {
 	Head     uint32
 	Tail     uint32

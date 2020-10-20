@@ -25,8 +25,9 @@ type IOURing struct {
 	sq *SubmissionQueue
 	cq *CompletionQueue
 
-	async bool
-	Flags uint32
+	async    bool
+	Flags    uint32
+	Features uint32
 
 	submitLock sync.Mutex
 
@@ -68,6 +69,7 @@ func New(entries uint, opts ...IOURingOption) (iour *IOURing, err error) {
 		sparseIndexs: make(map[int]int),
 	}
 	iour.Flags = iour.params.Flags
+	iour.Features = iour.params.Features
 
 	if err := iour.registerEventfd(); err != nil {
 		return nil, err
@@ -153,7 +155,17 @@ func (iour *IOURing) doRequest(sqe *iouring_syscall.SubmissionQueueEntry, reques
 	if sqe.Fd() >= 0 {
 		if index, ok := iour.fileRegister.GetFileIndex(int32(sqe.Fd())); ok {
 			sqe.SetFdIndex(int32(index))
-		} else if iour.Flags&iouring_syscall.IORING_SETUP_FLAGS_SQPOLL != 0 {
+		} else if iour.Flags&iouring_syscall.IORING_SETUP_SQPOLL != 0 &&
+			iour.Features&iouring_syscall.IORING_FEAT_SQPOLL_NONFIXED == 0 {
+			/*
+				Before version 5.10 of the Linux kernel, to successful use SQPoll, the application
+				must register a set of files to be used for IO through iour.RegisterFiles.
+				Failure to do so will result in submitted IO being errored with EBADF
+
+				The presence of this feature can be detected by the IORING_FEAT_SQPOLL_NONFIXED
+				In Version 5.10 and later, it is no longer necessary to register files to use SQPoll
+			*/
+
 			return nil, ErrUnregisteredFile
 		}
 	}
@@ -243,7 +255,7 @@ func (iour *IOURing) SubmitRequests(requests []PrepRequest, ch chan<- Result) (R
 }
 
 func (iour *IOURing) needEnter(flags *uint32) bool {
-	if (iour.Flags & iouring_syscall.IORING_SETUP_FLAGS_SQPOLL) == 0 {
+	if (iour.Flags & iouring_syscall.IORING_SETUP_SQPOLL) == 0 {
 		return true
 	}
 
@@ -262,7 +274,7 @@ func (iour *IOURing) submit() (submitted int, err error) {
 		return
 	}
 
-	if (iour.Flags & iouring_syscall.IORING_SETUP_FLAGS_IOPOLL) != 0 {
+	if (iour.Flags & iouring_syscall.IORING_SETUP_IOPOLL) != 0 {
 		flags |= iouring_syscall.IORING_ENTER_FLAGS_GETEVENTS
 	}
 
@@ -279,7 +291,7 @@ func (iour *IOURing) submitAndWait(waitCount uint32) (submitted int, err error) 
 		return
 	}
 
-	if waitCount != 0 || (iour.Flags&iouring_syscall.IORING_SETUP_FLAGS_IOPOLL) != 0 {
+	if waitCount != 0 || (iour.Flags&iouring_syscall.IORING_SETUP_IOPOLL) != 0 {
 		flags |= iouring_syscall.IORING_ENTER_FLAGS_GETEVENTS
 	}
 

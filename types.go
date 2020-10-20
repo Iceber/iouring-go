@@ -68,12 +68,12 @@ type SubmissionQueue struct {
 	head    *uint32
 	tail    *uint32
 	mask    *uint32
-	entries *uint32
-	flags   *uint32
-	dropped *uint32
+	entries *uint32 // specifies the number of submission queue ring entries
+	flags   *uint32 // used by the kernel to communicate stat information to the application
+	dropped *uint32 // incrementd for each invalid submission queue entry encountered in the ring buffer
 
 	array []uint32
-	sqes  []iouring_syscall.SubmissionQueueEntry
+	sqes  []iouring_syscall.SubmissionQueueEntry // submission queue ring
 
 	sqeHead uint32
 	sqeTail uint32
