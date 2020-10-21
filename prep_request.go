@@ -23,6 +23,13 @@ func (prepReq PrepRequest) WithInfo(info interface{}) PrepRequest {
 	}
 }
 
+func (prepReq PrepRequest) WithDrain() PrepRequest {
+	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
+		prepReq(sqe, userData)
+		sqe.SetFlags(iouring_syscall.IOSQE_FLAGS_IO_DRAIN)
+	}
+}
+
 func (prepReq PrepRequest) WithCallback(callback RequestCallback) PrepRequest {
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		prepReq(sqe, userData)
