@@ -26,6 +26,7 @@ type IOURing struct {
 	cq *CompletionQueue
 
 	async    bool
+	drain    bool
 	Flags    uint32
 	Features uint32
 
@@ -172,6 +173,9 @@ func (iour *IOURing) doRequest(sqe *iouring_syscall.SubmissionQueueEntry, reques
 
 	if iour.async {
 		sqe.SetFlags(iouring_syscall.IOSQE_FLAGS_ASYNC)
+	}
+	if iour.drain {
+		sqe.SetFlags(iouring_syscall.IOSQE_FLAGS_IO_DRAIN)
 	}
 	return userData, nil
 }

@@ -72,3 +72,10 @@ func WithDisableRing() IOURingOption {
 		iour.params.Flags |= iouring_syscall.IORING_SETUP_R_DISABLED
 	}
 }
+
+// WithDrain every SQE will not be started before previously submitted SQEs have completed
+func WithDrain() IOURingOption {
+	return func(iour *IOURing) {
+		iour.drain = true
+	}
+}
