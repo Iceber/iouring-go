@@ -43,8 +43,8 @@ type IOURing struct {
 }
 
 // New return a IOURing instance by IOURingOptions
-func New(entries uint, opts ...IOURingOption) (iour *IOURing, err error) {
-	iour = &IOURing{
+func New(entries uint, opts ...IOURingOption) (*IOURing, error) {
+	iour := &IOURing{
 		params:    &iouring_syscall.IOURingParams{},
 		userDatas: make(map[uint64]*UserData),
 		cqeSign:   make(chan struct{}, 1),
@@ -56,12 +56,14 @@ func New(entries uint, opts ...IOURingOption) (iour *IOURing, err error) {
 		opt(iour)
 	}
 
+	var err error
 	iour.fd, err = iouring_syscall.IOURingSetup(entries, iour.params)
 	if err != nil {
 		return nil, err
 	}
 
 	if err := mmapIOURing(iour); err != nil {
+		munmapIOURing(iour)
 		return nil, err
 	}
 
@@ -73,10 +75,12 @@ func New(entries uint, opts ...IOURingOption) (iour *IOURing, err error) {
 	iour.Features = iour.params.Features
 
 	if err := iour.registerEventfd(); err != nil {
+		iour.Close()
 		return nil, err
 	}
 
 	if err := registerIOURing(iour); err != nil {
+		iour.Close()
 		return nil, err
 	}
 
