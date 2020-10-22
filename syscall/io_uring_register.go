@@ -31,17 +31,23 @@ type IOURingFilesUpdate struct {
 }
 
 func IOURingRegister(fd int, opcode uint8, args unsafe.Pointer, nrArgs uint32) error {
-	_, _, errno := syscall.Syscall6(
-		SYS_IO_URING_REGISTER,
-		uintptr(fd),
-		uintptr(opcode),
-		uintptr(args),
-		uintptr(nrArgs),
-		0,
-		0,
-	)
-	if errno != 0 {
-		return os.NewSyscallError("iouring_register", errno)
+	for {
+		_, _, errno := syscall.Syscall6(
+			SYS_IO_URING_REGISTER,
+			uintptr(fd),
+			uintptr(opcode),
+			uintptr(args),
+			uintptr(nrArgs),
+			0,
+			0,
+		)
+		if errno != 0 {
+			// EINTR may be returned when blocked
+			if errno == syscall.EINTR {
+				continue
+			}
+			return os.NewSyscallError("iouring_register", errno)
+		}
+		return nil
 	}
-	return nil
 }
