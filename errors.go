@@ -6,6 +6,7 @@ import "errors"
 
 var (
 	ErrIOURingClosed = errors.New("iouring closed")
+	ErrCQOverflow    = errors.New("completion queue is overflow")
 
 	ErrRequestCanceled     = errors.New("request is canceled")
 	ErrRequestNotFound     = errors.New("request is not found")

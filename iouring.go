@@ -287,6 +287,11 @@ func (iour *IOURing) submit() (submitted int, err error) {
 	}
 
 	submitted, err = iouring_syscall.IOURingEnter(iour.fd, uint32(submitted), 0, flags, nil)
+
+	// May return EBUSY if the application tries to queue more requests than we have room for in the CQ ring.
+	if errors.Is(err, syscall.EBUSY) && iour.sq.cqOverflow() {
+		err = ErrCQOverflow
+	}
 	return
 }
 
