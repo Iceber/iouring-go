@@ -7,6 +7,10 @@
 
 [Lord of the io_uring](https://unixism.net/loti/)
 
+[【译】高性能异步 IO —— io_uring (Effecient IO with io_uring)](http://icebergu.com/archives/linux-iouring)
+
+[Go 与异步 IO - io_uring 的思考](http://icebergu.com/archives/go-iouring)
+
 # Features
 - [x] register a file set for io_uring instance
 - [x] support file IO
