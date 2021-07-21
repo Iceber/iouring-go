@@ -104,7 +104,10 @@ func (poller *iourPoller) run() {
 }
 
 func (poller *iourPoller) adjust() {
+	poller.Lock()
 	l := len(poller.iours) - len(poller.events)
+	poller.Unlock()
+
 	if l <= 0 {
 		return
 	}
