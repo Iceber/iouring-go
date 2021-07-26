@@ -2,10 +2,6 @@
 
 package iouring_syscall
 
-import (
-	"unsafe"
-)
-
 const (
 	SYS_IO_URING_SETUP    = 425
 	SYS_IO_URING_ENTER    = 426
@@ -75,10 +71,6 @@ const IOSQE_SYNC_DATASYNC uint = 1
 const IOSQE_TIMEOUT_ABS uint = 1
 const IOSQE_SPLICE_F_FD_IN_FIXED = 1 << 31
 
-const sqeSize = unsafe.Sizeof(SubmissionQueueRingOffset{})
-
-var empty [sqeSize]byte
-
 type SubmissionQueueEntry struct {
 	opcode   uint8
 	flags    uint8
@@ -101,8 +93,7 @@ func (sqe *SubmissionQueueEntry) Opcode() uint8 {
 }
 
 func (sqe *SubmissionQueueEntry) Reset() {
-	buf := (*[sqeSize]byte)(unsafe.Pointer(sqe))
-	copy(buf[:], empty[:])
+	*sqe = SubmissionQueueEntry{}
 }
 
 func (sqe *SubmissionQueueEntry) PrepOperation(op uint8, fd int32, addrOrSpliceOffIn uint64, len uint32, offset uint64) {
