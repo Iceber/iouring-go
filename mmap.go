@@ -136,7 +136,7 @@ func munmapIOURing(iour *IOURing) error {
 	}
 
 	if iour.cq != nil && iour.cq.ptr != 0 {
-		if err := munmap(iour.sq.ptr, iour.sq.size); err != nil {
+		if err := munmap(iour.cq.ptr, iour.cq.size); err != nil {
 			return fmt.Errorf("munmap cq: %w", err)
 		}
 		iour.cq = nil
