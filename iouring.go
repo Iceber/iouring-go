@@ -248,6 +248,7 @@ func (iour *IOURing) SubmitRequests(requests []PrepRequest, ch chan<- Result) (R
 		iour.userDatas[data.id] = data
 	}
 	iour.userDataLock.Unlock()
+	rset := newRequestSet(userDatas)
 
 	if _, err := iour.submit(); err != nil {
 		iour.userDataLock.Lock()
@@ -259,7 +260,7 @@ func (iour *IOURing) SubmitRequests(requests []PrepRequest, ch chan<- Result) (R
 		return nil, err
 	}
 
-	return newRequestSet(userDatas), nil
+	return rset, nil
 }
 
 func (iour *IOURing) needEnter(flags *uint32) bool {
