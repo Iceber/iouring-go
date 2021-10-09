@@ -243,12 +243,16 @@ func (iour *IOURing) SubmitRequests(requests []PrepRequest, ch chan<- Result) (R
 		userDatas = append(userDatas, userData)
 	}
 
+	// must be located before the lock operation to
+	// avoid the compiler's adjustment of the code order.
+	// issue: https://github.com/Iceber/iouring-go/issues/8
+	rset := newRequestSet(userDatas)
+
 	iour.userDataLock.Lock()
 	for _, data := range userDatas {
 		iour.userDatas[data.id] = data
 	}
 	iour.userDataLock.Unlock()
-	rset := newRequestSet(userDatas)
 
 	if _, err := iour.submit(); err != nil {
 		iour.userDataLock.Lock()
