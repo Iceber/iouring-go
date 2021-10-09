@@ -57,18 +57,14 @@ func (iour *IOURing) submitLinkRequest(requests []PrepRequest, ch chan<- Result,
 		}
 	}
 
-	iour.userDataLock.Lock()
 	for _, data := range userDatas {
-		iour.userDatas[data.id] = data
+		iour.userDatas.Store(data.id, data)
 	}
-	iour.userDataLock.Unlock()
 
 	if _, err := iour.submit(); err != nil {
-		iour.userDataLock.Lock()
 		for _, data := range userDatas {
-			delete(iour.userDatas, data.id)
+			iour.userDatas.Delete(data.id)
 		}
-		iour.userDataLock.Unlock()
 
 		return nil, err
 	}

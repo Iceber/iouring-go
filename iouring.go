@@ -32,8 +32,7 @@ type IOURing struct {
 
 	submitLock sync.Mutex
 
-	userDataLock sync.RWMutex
-	userDatas    map[uint64]*UserData
+	userDatas sync.Map
 
 	fileRegister FileRegister
 
@@ -45,11 +44,10 @@ type IOURing struct {
 // New return a IOURing instance by IOURingOptions
 func New(entries uint, opts ...IOURingOption) (*IOURing, error) {
 	iour := &IOURing{
-		params:    &iouring_syscall.IOURingParams{},
-		userDatas: make(map[uint64]*UserData),
-		cqeSign:   make(chan struct{}, 1),
-		closer:    make(chan struct{}),
-		closed:    make(chan struct{}),
+		params:  &iouring_syscall.IOURingParams{},
+		cqeSign: make(chan struct{}, 1),
+		closer:  make(chan struct{}),
+		closed:  make(chan struct{}),
 	}
 
 	for _, opt := range opts {
@@ -201,14 +199,9 @@ func (iour *IOURing) SubmitRequest(request PrepRequest, ch chan<- Result) (Reque
 		return nil, err
 	}
 
-	iour.userDataLock.Lock()
-	iour.userDatas[userData.id] = userData
-	iour.userDataLock.Unlock()
-
+	iour.userDatas.Store(userData.id, userData)
 	if _, err = iour.submit(); err != nil {
-		iour.userDataLock.Lock()
-		delete(iour.userDatas, userData.id)
-		iour.userDataLock.Unlock()
+		iour.userDatas.Delete(userData.id)
 		return nil, err
 	}
 
@@ -243,19 +236,15 @@ func (iour *IOURing) SubmitRequests(requests []PrepRequest, ch chan<- Result) (R
 		userDatas = append(userDatas, userData)
 	}
 
-	iour.userDataLock.Lock()
 	for _, data := range userDatas {
-		iour.userDatas[data.id] = data
+		iour.userDatas.Store(data.id, data)
 	}
-	iour.userDataLock.Unlock()
 	rset := newRequestSet(userDatas)
 
 	if _, err := iour.submit(); err != nil {
-		iour.userDataLock.Lock()
 		for _, data := range userDatas {
-			delete(iour.userDatas, data.id)
+			iour.userDatas.Delete(data.id)
 		}
-		iour.userDataLock.Unlock()
 
 		return nil, err
 	}
@@ -357,15 +346,14 @@ func (iour *IOURing) run() {
 
 		// log.Println("cqe user data", (cqe.UserData))
 
-		iour.userDataLock.Lock()
-		userData := iour.userDatas[cqe.UserData]
+		var userData *UserData
+		if value, ok := iour.userDatas.LoadAndDelete(cqe.UserData); ok {
+			userData, _ = value.(*UserData)
+		}
 		if userData == nil {
-			iour.userDataLock.Unlock()
 			log.Println("runComplete: notfound user data ", uintptr(cqe.UserData))
 			continue
 		}
-		delete(iour.userDatas, cqe.UserData)
-		iour.userDataLock.Unlock()
 
 		userData.request.complate(cqe)
 
