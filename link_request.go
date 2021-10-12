@@ -57,6 +57,11 @@ func (iour *IOURing) submitLinkRequest(requests []PrepRequest, ch chan<- Result,
 		}
 	}
 
+	// must be located before the lock operation to
+	// avoid the compiler's adjustment of the code order.
+	// issue: https://github.com/Iceber/iouring-go/issues/8
+	rset := newRequestSet(userDatas)
+
 	iour.userDataLock.Lock()
 	for _, data := range userDatas {
 		iour.userDatas[data.id] = data
@@ -73,7 +78,7 @@ func (iour *IOURing) submitLinkRequest(requests []PrepRequest, ch chan<- Result,
 		return nil, err
 	}
 
-	return newRequestSet(userDatas), nil
+	return rset, nil
 }
 
 func linkTimeout(t time.Duration) PrepRequest {
