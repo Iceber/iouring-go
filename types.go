@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 package iouring
@@ -45,6 +46,7 @@ const (
 	OpRemoveBuffers
 	OpTee
 	OpShutdown
+	OpMkdirat
 )
 
 // cancel operation return value

@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 package iouring
@@ -649,4 +650,25 @@ func EpollCtl(epfd int, op int, fd int, event *syscall.EpollEvent) PrepRequest {
 			uint64(fd),
 		)
 	}
+}
+
+func Mkdirat(dirFd int, path string, mode uint32) (PrepRequest, error) {
+	b, err := syscall.ByteSliceFromString(path)
+	if err != nil {
+		return nil, err
+	}
+
+	bp := unsafe.Pointer(&b[0])
+	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
+		userData.hold(&b)
+		userData.request.resolver = fdResolver
+
+		sqe.PrepOperation(
+			iouring_syscall.IORING_OP_MKDIRAT,
+			int32(dirFd),
+			uint64(uintptr(bp)),
+			uint32(mode),
+			0,
+		)
+	}, nil
 }

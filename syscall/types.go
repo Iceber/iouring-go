@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 package iouring_syscall
@@ -51,6 +52,7 @@ const (
 	IORING_OP_REMOVE_BUFFERS
 	IORING_OP_TEE
 	IORING_OP_SHUTDOWN
+	IORING_OP_MKDIRAT
 )
 
 const (
