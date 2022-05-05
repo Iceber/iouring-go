@@ -667,8 +667,30 @@ func Mkdirat(dirFd int, path string, mode uint32) (PrepRequest, error) {
 			iouring_syscall.IORING_OP_MKDIRAT,
 			int32(dirFd),
 			uint64(uintptr(bp)),
-			uint32(mode),
+			mode,
 			0,
 		)
+	}, nil
+}
+
+func Unlinkat(fd int, path string, flags int32) (PrepRequest, error) {
+	b, err := syscall.ByteSliceFromString(path)
+	if err != nil {
+		return nil, err
+	}
+
+	bp := unsafe.Pointer(&b[0])
+	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
+		userData.hold(&b)
+		userData.request.resolver = fdResolver
+
+		sqe.PrepOperation(
+			iouring_syscall.IORING_OP_UNLINKAT,
+			int32(fd),
+			uint64(uintptr(bp)),
+			0,
+			0,
+		)
+		sqe.SetOpFlags(uint32(flags))
 	}, nil
 }

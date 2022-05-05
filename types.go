@@ -46,6 +46,7 @@ const (
 	OpRemoveBuffers
 	OpTee
 	OpShutdown
+	OpUnlinkat
 	OpMkdirat
 )
 
