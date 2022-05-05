@@ -721,3 +721,31 @@ func Symlinkat(target string, newDirFd int, linkPath string) (PrepRequest, error
 		)
 	}, nil
 }
+
+func Linkat(targetDirFd int, targetPath string, linkDirFd int, linkPath string, flags int) (PrepRequest, error) {
+	bTargetPath, err := syscall.ByteSliceFromString(targetPath)
+	if err != nil {
+		return nil, err
+	}
+	bLinkPath, err := syscall.ByteSliceFromString(linkPath)
+	if err != nil {
+		return nil, err
+	}
+
+	bpTargetPath := unsafe.Pointer(&bTargetPath[0])
+	bpLinkPath := unsafe.Pointer(&bLinkPath[0])
+	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
+		userData.hold(&bpTargetPath)
+		userData.Hold(&bpLinkPath)
+		userData.request.resolver = fdResolver
+
+		sqe.PrepOperation(
+			iouring_syscall.IORING_OP_LINKAT,
+			int32(targetDirFd),
+			uint64(uintptr(bpTargetPath)),
+			uint32(linkDirFd),
+			uint64(uintptr(bpLinkPath)),
+		)
+		sqe.SetOpFlags(uint32(flags))
+	}, nil
+}

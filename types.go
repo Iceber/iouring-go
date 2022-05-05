@@ -49,6 +49,7 @@ const (
 	OpUnlinkat
 	OpMkdirat
 	OpSymlinkat
+	OpLinkat
 )
 
 // cancel operation return value
