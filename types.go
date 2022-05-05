@@ -48,6 +48,7 @@ const (
 	OpShutdown
 	OpUnlinkat
 	OpMkdirat
+	OpSymlinkat
 )
 
 // cancel operation return value
