@@ -722,6 +722,36 @@ func Symlinkat(target string, newDirFd int, linkPath string) (PrepRequest, error
 	}, nil
 }
 
+func Renameat2(oldDirFd int, oldPath string, newDirFd int, newPath string, flags int) (PrepRequest, error) {
+	bOldPath, err := syscall.ByteSliceFromString(oldPath)
+	if err != nil {
+		return nil, err
+	}
+	bNewPath, err := syscall.ByteSliceFromString(newPath)
+	if err != nil {
+		return nil, err
+	}
+
+	bpOldPath := unsafe.Pointer(&bOldPath[0])
+	bpNewPath := unsafe.Pointer(&bNewPath[0])
+	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
+		userData.hold(&bOldPath)
+		userData.Hold(&bNewPath)
+		userData.request.resolver = fdResolver
+
+		sqe.PrepOperation(
+			iouring_syscall.IORING_OP_RENAMEAT,
+			int32(oldDirFd), uint64(uintptr(bpOldPath)),
+			uint32(newDirFd), uint64(uintptr(bpNewPath)),
+		)
+		sqe.SetOpFlags(uint32(flags))
+	}, nil
+}
+
+func Renameat(oldDirFd int, oldPath string, newDirFd int, newPath string) (PrepRequest, error) {
+	return Renameat2(oldDirFd, oldPath, newDirFd, newPath, 0)
+}
+
 func Linkat(targetDirFd int, targetPath string, linkDirFd int, linkPath string, flags int) (PrepRequest, error) {
 	bTargetPath, err := syscall.ByteSliceFromString(targetPath)
 	if err != nil {
