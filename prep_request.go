@@ -708,8 +708,7 @@ func Symlinkat(target string, newDirFd int, linkPath string) (PrepRequest, error
 	bpTarget := unsafe.Pointer(&bTarget[0])
 	bpLink := unsafe.Pointer(&bLink[0])
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
-		userData.hold(&bTarget)
-		userData.Hold(&bLink)
+		userData.hold(&bTarget, &bLink)
 		userData.request.resolver = fdResolver
 
 		sqe.PrepOperation(
@@ -735,8 +734,7 @@ func Renameat2(oldDirFd int, oldPath string, newDirFd int, newPath string, flags
 	bpOldPath := unsafe.Pointer(&bOldPath[0])
 	bpNewPath := unsafe.Pointer(&bNewPath[0])
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
-		userData.hold(&bOldPath)
-		userData.Hold(&bNewPath)
+		userData.hold(&bOldPath, &bNewPath)
 		userData.request.resolver = fdResolver
 
 		sqe.PrepOperation(
@@ -765,8 +763,7 @@ func Linkat(targetDirFd int, targetPath string, linkDirFd int, linkPath string, 
 	bpTargetPath := unsafe.Pointer(&bTargetPath[0])
 	bpLinkPath := unsafe.Pointer(&bLinkPath[0])
 	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
-		userData.hold(&bpTargetPath)
-		userData.Hold(&bpLinkPath)
+		userData.hold(&bpTargetPath, &bpLinkPath)
 		userData.request.resolver = fdResolver
 
 		sqe.PrepOperation(
