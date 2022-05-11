@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 package iouring
@@ -649,4 +650,129 @@ func EpollCtl(epfd int, op int, fd int, event *syscall.EpollEvent) PrepRequest {
 			uint64(fd),
 		)
 	}
+}
+
+func Mkdirat(dirFd int, path string, mode uint32) (PrepRequest, error) {
+	b, err := syscall.ByteSliceFromString(path)
+	if err != nil {
+		return nil, err
+	}
+
+	bp := unsafe.Pointer(&b[0])
+	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
+		userData.hold(&b)
+		userData.request.resolver = fdResolver
+
+		sqe.PrepOperation(
+			iouring_syscall.IORING_OP_MKDIRAT,
+			int32(dirFd),
+			uint64(uintptr(bp)),
+			mode,
+			0,
+		)
+	}, nil
+}
+
+func Unlinkat(fd int, path string, flags int32) (PrepRequest, error) {
+	b, err := syscall.ByteSliceFromString(path)
+	if err != nil {
+		return nil, err
+	}
+
+	bp := unsafe.Pointer(&b[0])
+	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
+		userData.hold(&b)
+		userData.request.resolver = fdResolver
+
+		sqe.PrepOperation(
+			iouring_syscall.IORING_OP_UNLINKAT,
+			int32(fd),
+			uint64(uintptr(bp)),
+			0,
+			0,
+		)
+		sqe.SetOpFlags(uint32(flags))
+	}, nil
+}
+
+func Symlinkat(target string, newDirFd int, linkPath string) (PrepRequest, error) {
+	bTarget, err := syscall.ByteSliceFromString(target)
+	if err != nil {
+		return nil, err
+	}
+	bLink, err := syscall.ByteSliceFromString(linkPath)
+	if err != nil {
+		return nil, err
+	}
+
+	bpTarget := unsafe.Pointer(&bTarget[0])
+	bpLink := unsafe.Pointer(&bLink[0])
+	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
+		userData.hold(&bTarget, &bLink)
+		userData.request.resolver = fdResolver
+
+		sqe.PrepOperation(
+			iouring_syscall.IORING_OP_SYMLINKAT,
+			int32(newDirFd),
+			uint64(uintptr(bpTarget)),
+			0,
+			uint64(uintptr(bpLink)),
+		)
+	}, nil
+}
+
+func Renameat2(oldDirFd int, oldPath string, newDirFd int, newPath string, flags int) (PrepRequest, error) {
+	bOldPath, err := syscall.ByteSliceFromString(oldPath)
+	if err != nil {
+		return nil, err
+	}
+	bNewPath, err := syscall.ByteSliceFromString(newPath)
+	if err != nil {
+		return nil, err
+	}
+
+	bpOldPath := unsafe.Pointer(&bOldPath[0])
+	bpNewPath := unsafe.Pointer(&bNewPath[0])
+	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
+		userData.hold(&bOldPath, &bNewPath)
+		userData.request.resolver = fdResolver
+
+		sqe.PrepOperation(
+			iouring_syscall.IORING_OP_RENAMEAT,
+			int32(oldDirFd), uint64(uintptr(bpOldPath)),
+			uint32(newDirFd), uint64(uintptr(bpNewPath)),
+		)
+		sqe.SetOpFlags(uint32(flags))
+	}, nil
+}
+
+func Renameat(oldDirFd int, oldPath string, newDirFd int, newPath string) (PrepRequest, error) {
+	return Renameat2(oldDirFd, oldPath, newDirFd, newPath, 0)
+}
+
+func Linkat(targetDirFd int, targetPath string, linkDirFd int, linkPath string, flags int) (PrepRequest, error) {
+	bTargetPath, err := syscall.ByteSliceFromString(targetPath)
+	if err != nil {
+		return nil, err
+	}
+	bLinkPath, err := syscall.ByteSliceFromString(linkPath)
+	if err != nil {
+		return nil, err
+	}
+
+	bpTargetPath := unsafe.Pointer(&bTargetPath[0])
+	bpLinkPath := unsafe.Pointer(&bLinkPath[0])
+	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
+		userData.hold(&bpTargetPath, &bpLinkPath)
+		userData.request.resolver = fdResolver
+
+		sqe.PrepOperation(
+			iouring_syscall.IORING_OP_LINKAT,
+			int32(targetDirFd),
+			uint64(uintptr(bpTargetPath)),
+			uint32(linkDirFd),
+			uint64(uintptr(bpLinkPath)),
+		)
+		sqe.SetOpFlags(uint32(flags))
+	}, nil
 }
