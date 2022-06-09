@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 package iouring_syscall
@@ -55,7 +56,7 @@ type SubmissionQueueRingOffset struct {
 	Dropped     uint32
 	Array       uint32
 	Resv1       uint32
-	Resv2       uint32
+	Resv2       uint64
 }
 
 // CompletionQueueRingOffset describes the offsets of various ring buffer fields
@@ -67,7 +68,8 @@ type CompletionQueueRingOffset struct {
 	Overflow uint32
 	Cqes     uint32
 	Flags    uint32
-	Resv     [2]uint64
+	Resv1    uint32
+	Resv2    uint64
 }
 
 func IOURingSetup(entries uint, params *IOURingParams) (int, error) {
