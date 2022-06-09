@@ -317,7 +317,10 @@ func (iour *IOURing) getCQEvent(wait bool) (cqe *iouring_syscall.CompletionQueue
 	var tryPeeks int
 	for {
 		if cqe = iour.cq.peek(); cqe != nil {
+			// Copy CQE.
+			cqe2 := *cqe
 			iour.cq.advance(1)
+			cqe = &cqe2
 			return
 		}
 
