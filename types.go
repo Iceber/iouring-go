@@ -135,9 +135,9 @@ type CompletionQueue struct {
 	head     *uint32
 	tail     *uint32
 	mask     *uint32
-	overflow *uint32
 	entries  *uint32
 	flags    *uint32
+	overflow *uint32
 
 	cqes []iouring_syscall.CompletionQueueEvent
 }
