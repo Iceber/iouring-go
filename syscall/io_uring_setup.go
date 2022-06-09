@@ -61,15 +61,15 @@ type SubmissionQueueRingOffset struct {
 
 // CompletionQueueRingOffset describes the offsets of various ring buffer fields
 type CompletionQueueRingOffset struct {
-	Head     uint32
-	Tail     uint32
-	RingMask uint32
-	Entries  uint32
-	Overflow uint32
-	Cqes     uint32
-	Flags    uint32
-	Resv1    uint32
-	Resv2    uint64
+	Head        uint32
+	Tail        uint32
+	RingMask    uint32
+	RingEntries uint32
+	Overflow    uint32
+	Cqes        uint32
+	Flags       uint32
+	Resv1       uint32
+	Resv2       uint64
 }
 
 func IOURingSetup(entries uint, params *IOURingParams) (int, error) {
