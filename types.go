@@ -79,7 +79,7 @@ type SubmissionQueue struct {
 	dropped *uint32 // incrementd for each invalid submission queue entry encountered in the ring buffer
 
 	array []uint32
-	sqes  []iouring_syscall.SQECore // submission queue ring
+	sqes  []iouring_syscall.SubmissionQueueEntry64 // submission queue ring
 
 	sqeHead uint32
 	sqeTail uint32
@@ -139,7 +139,7 @@ type CompletionQueue struct {
 	flags    *uint32
 	overflow *uint32
 
-	cqes []iouring_syscall.CQECore
+	cqes []iouring_syscall.CompletionQueueEvent16
 }
 
 func (queue *CompletionQueue) peek() (cqe iouring_syscall.CompletionQueueEvent) {

@@ -16,7 +16,7 @@ import (
 var (
 	uint32Size = uint32(unsafe.Sizeof(uint32(0)))
 	// TODO: sungup@me.com - change seqSize to dynamic value
-	sqeSize = uint32(unsafe.Sizeof(iouring_syscall.SQECore{}))
+	sqeSize = uint32(unsafe.Sizeof(iouring_syscall.SubmissionQueueEntry64{}))
 )
 
 func mmapIOURing(iour *IOURing) (err error) {
@@ -93,7 +93,7 @@ func mmapCQ(iour *IOURing) (err error) {
 	cq.overflow = (*uint32)(unsafe.Pointer(cq.ptr + uintptr(params.CQOffset.Overflow)))
 
 	// TODO: sungup@me.com - need to change the CQ entry type with 32B
-	cq.cqes = *(*[]iouring_syscall.CQECore)(
+	cq.cqes = *(*[]iouring_syscall.CompletionQueueEvent16)(
 		unsafe.Pointer(&reflect.SliceHeader{
 			Data: cq.ptr + uintptr(params.CQOffset.Cqes),
 			Len:  int(params.CQEntries),
@@ -112,7 +112,7 @@ func mmapSQEs(iour *IOURing) error {
 	}
 
 	// TODO: sungup@me.com - need to change the SQ entry type with 128B
-	iour.sq.sqes = *(*[]iouring_syscall.SQECore)(
+	iour.sq.sqes = *(*[]iouring_syscall.SubmissionQueueEntry64)(
 		unsafe.Pointer(&reflect.SliceHeader{
 			Data: ptr,
 			Len:  int(params.SQEntries),

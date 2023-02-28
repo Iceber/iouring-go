@@ -3,6 +3,12 @@
 
 package iouring_syscall
 
+import (
+	"fmt"
+	"reflect"
+	"unsafe"
+)
+
 const (
 	SYS_IO_URING_SETUP    = 425
 	SYS_IO_URING_ENTER    = 426
@@ -104,9 +110,11 @@ type SubmissionQueueEntry interface {
 	SetBufGroup(bufGroup uint16)
 	SetPersonality(personality uint16)
 	SetSpliceFdIn(fdIn int32)
+
+	CMD(castType interface{}) interface{}
 }
 
-type SQECore struct {
+type sqeCore struct {
 	opcode   uint8
 	flags    uint8
 	ioprio   uint16
@@ -120,18 +128,17 @@ type SQECore struct {
 	bufIndexOrGroup uint16
 	personality     uint16
 	spliceFdIn      int32
-	extra           [2]uint64
 }
 
-func (sqe *SQECore) Opcode() uint8 {
+func (sqe *sqeCore) Opcode() uint8 {
 	return sqe.opcode
 }
 
-func (sqe *SQECore) Reset() {
-	*sqe = SQECore{}
+func (sqe *sqeCore) Reset() {
+	*sqe = sqeCore{}
 }
 
-func (sqe *SQECore) PrepOperation(op uint8, fd int32, addrOrSpliceOffIn uint64, len uint32, offsetOrCmdOp uint64) {
+func (sqe *sqeCore) PrepOperation(op uint8, fd int32, addrOrSpliceOffIn uint64, len uint32, offsetOrCmdOp uint64) {
 	sqe.opcode = op
 	sqe.fd = fd
 	sqe.addr = addrOrSpliceOffIn
@@ -139,49 +146,69 @@ func (sqe *SQECore) PrepOperation(op uint8, fd int32, addrOrSpliceOffIn uint64, 
 	sqe.offset = offsetOrCmdOp
 }
 
-func (sqe *SQECore) Fd() int32 {
+func (sqe *sqeCore) Fd() int32 {
 	return sqe.fd
 }
 
-func (sqe *SQECore) SetFdIndex(index int32) {
+func (sqe *sqeCore) SetFdIndex(index int32) {
 	sqe.fd = index
 	sqe.flags |= IOSQE_FLAGS_FIXED_FILE
 }
 
-func (sqe *SQECore) SetOpFlags(opflags uint32) {
+func (sqe *sqeCore) SetOpFlags(opflags uint32) {
 	sqe.opFlags = opflags
 }
 
-func (sqe *SQECore) SetUserData(userData uint64) {
+func (sqe *sqeCore) SetUserData(userData uint64) {
 	sqe.userdata = userData
 }
 
-func (sqe *SQECore) SetFlags(flags uint8) {
+func (sqe *sqeCore) SetFlags(flags uint8) {
 	sqe.flags |= flags
 }
 
-func (sqe *SQECore) CleanFlags(flags uint8) {
+func (sqe *sqeCore) CleanFlags(flags uint8) {
 	sqe.flags ^= flags
 }
 
-func (sqe *SQECore) SetIoprio(ioprio uint16) {
+func (sqe *sqeCore) SetIoprio(ioprio uint16) {
 	sqe.ioprio = ioprio
 }
 
-func (sqe *SQECore) SetBufIndex(bufIndex uint16) {
+func (sqe *sqeCore) SetBufIndex(bufIndex uint16) {
 	sqe.bufIndexOrGroup = bufIndex
 }
 
-func (sqe *SQECore) SetBufGroup(bufGroup uint16) {
+func (sqe *sqeCore) SetBufGroup(bufGroup uint16) {
 	sqe.bufIndexOrGroup = bufGroup
 }
 
-func (sqe *SQECore) SetPersonality(personality uint16) {
+func (sqe *sqeCore) SetPersonality(personality uint16) {
 	sqe.personality = personality
 }
 
-func (sqe *SQECore) SetSpliceFdIn(fdIn int32) {
+func (sqe *sqeCore) SetSpliceFdIn(fdIn int32) {
 	sqe.spliceFdIn = fdIn
+}
+
+type SubmissionQueueEntry64 struct {
+	sqeCore
+
+	extra [2]uint64
+}
+
+func (sqe *SubmissionQueueEntry64) CMD(_ interface{}) interface{} {
+	panic(fmt.Errorf("unsupported interface for CMD command"))
+}
+
+type SubmissionQueueEntry128 struct {
+	sqeCore
+
+	cmd [80]uint8
+}
+
+func (sqe *SubmissionQueueEntry128) CMD(castType interface{}) interface{} {
+	return reflect.NewAt(reflect.TypeOf(castType), unsafe.Pointer(&sqe.cmd[0])).Interface()
 }
 
 type CompletionQueueEvent interface {
@@ -191,32 +218,42 @@ type CompletionQueueEvent interface {
 	Clone() CompletionQueueEvent
 }
 
-type CQECore struct {
+type cqeCore struct {
 	userData uint64
 	result   int32
 	flags    uint32
 }
 
-func (cqe *CQECore) copyTo(dest *CQECore) {
+func (cqe *cqeCore) copyTo(dest *cqeCore) {
 	*dest = *cqe
 }
 
-func (cqe *CQECore) UserData() uint64 {
+func (cqe *cqeCore) UserData() uint64 {
 	return cqe.userData
 }
 
-func (cqe *CQECore) Result() int32 {
+func (cqe *cqeCore) Result() int32 {
 	return cqe.result
 }
 
-func (cqe *CQECore) Flags() uint32 {
+func (cqe *cqeCore) Flags() uint32 {
 	return cqe.flags
 }
 
-func (cqe *CQECore) Clone() CompletionQueueEvent {
-	dest := &CQECore{}
+func (cqe *cqeCore) Clone() CompletionQueueEvent {
+	dest := &cqeCore{}
 	cqe.copyTo(dest)
 	return dest
+}
+
+type CompletionQueueEvent16 struct {
+	cqeCore
+}
+
+type CompletionQueueEvent32 struct {
+	cqeCore
+
+	data [16]uint8
 }
 
 const IORING_FSYNC_DATASYNC uint32 = 1
