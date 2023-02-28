@@ -78,6 +78,14 @@ type SubmissionQueueRing interface {
 	index(index uint32) iouring_syscall.SubmissionQueueEntry
 }
 
+func makeSubmissionQueueRing(flags uint32) SubmissionQueueRing {
+	if flags&iouring_syscall.IORING_SETUP_SQE128 == 0 {
+		return new(SubmissionQueueRing64)
+	} else {
+		return new(SubmissionQueueRing128)
+	}
+}
+
 type SubmissionQueueRing64 struct {
 	queue []iouring_syscall.SubmissionQueueEntry64
 }
@@ -212,6 +220,14 @@ type CompletionQueueRing interface {
 	assignQueue(ptr uintptr, len int)
 	mappedPtr() uintptr
 	index(index uint32) iouring_syscall.CompletionQueueEvent
+}
+
+func makeCompletionQueueRing(flags uint32) CompletionQueueRing {
+	if flags&iouring_syscall.IORING_SETUP_CQE32 == 0 {
+		return new(CompletionQueueRing16)
+	} else {
+		return new(CompletionQueueRing32)
+	}
 }
 
 type CompletionQueueRing16 struct {

@@ -72,7 +72,7 @@ func mmapCQ(iour *IOURing) (err error) {
 	params := iour.params
 	cq := iour.cq
 
-	cqes := CompletionQueueRing(new(CompletionQueueRing16))
+	cqes := makeCompletionQueueRing(params.Flags)
 
 	cq.size = params.CQOffset.Cqes + params.CQEntries*cqes.entrySz()
 	if cq.ptr == 0 {
@@ -98,7 +98,7 @@ func mmapCQ(iour *IOURing) (err error) {
 func mmapSQEs(iour *IOURing) error {
 	params := iour.params
 
-	sqes := SubmissionQueueRing(new(SubmissionQueueRing64))
+	sqes := makeSubmissionQueueRing(params.Flags)
 
 	ptr, err := mmap(iour.fd, params.SQEntries*sqes.entrySz(), iouring_syscall.IORING_OFF_SQES)
 	if err != nil {

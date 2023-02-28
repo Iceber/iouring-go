@@ -134,10 +134,6 @@ func (sqe *sqeCore) Opcode() uint8 {
 	return sqe.opcode
 }
 
-func (sqe *sqeCore) Reset() {
-	*sqe = sqeCore{}
-}
-
 func (sqe *sqeCore) PrepOperation(op uint8, fd int32, addrOrSpliceOffIn uint64, len uint32, offsetOrCmdOp uint64) {
 	sqe.opcode = op
 	sqe.fd = fd
@@ -197,6 +193,10 @@ type SubmissionQueueEntry64 struct {
 	extra [2]uint64
 }
 
+func (sqe *SubmissionQueueEntry64) Reset() {
+	*sqe = SubmissionQueueEntry64{}
+}
+
 func (sqe *SubmissionQueueEntry64) CMD(_ interface{}) interface{} {
 	panic(fmt.Errorf("unsupported interface for CMD command"))
 }
@@ -205,6 +205,10 @@ type SubmissionQueueEntry128 struct {
 	sqeCore
 
 	cmd [80]uint8
+}
+
+func (sqe *SubmissionQueueEntry128) Reset() {
+	*sqe = SubmissionQueueEntry128{}
 }
 
 func (sqe *SubmissionQueueEntry128) CMD(castType interface{}) interface{} {
