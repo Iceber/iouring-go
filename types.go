@@ -75,7 +75,6 @@ type SubmissionQueueRing interface {
 	ringSz() uint32
 	assignQueue(ptr uintptr, len int)
 	mappedPtr() uintptr
-	resetQueue()
 	index(index uint32) iouring_syscall.SubmissionQueueEntry
 }
 
@@ -84,7 +83,7 @@ type SubmissionQueueRing64 struct {
 }
 
 func (ring *SubmissionQueueRing64) isActive() bool {
-	return ring.queue == nil || len(ring.queue) == 0
+	return ring.queue != nil && len(ring.queue) > 0
 }
 
 func (ring *SubmissionQueueRing64) entrySz() uint32 {
@@ -106,10 +105,6 @@ func (ring *SubmissionQueueRing64) assignQueue(ptr uintptr, len int) {
 
 func (ring *SubmissionQueueRing64) mappedPtr() uintptr {
 	return uintptr(unsafe.Pointer(&ring.queue[0]))
-}
-
-func (ring *SubmissionQueueRing64) resetQueue() {
-	ring.queue = nil
 }
 
 func (ring *SubmissionQueueRing64) index(index uint32) iouring_syscall.SubmissionQueueEntry {
@@ -143,10 +138,6 @@ func (ring *SubmissionQueueRing128) assignQueue(ptr uintptr, len int) {
 
 func (ring *SubmissionQueueRing128) mappedPtr() uintptr {
 	return uintptr(unsafe.Pointer(&ring.queue[0]))
-}
-
-func (ring *SubmissionQueueRing128) resetQueue() {
-	ring.queue = nil
 }
 
 func (ring *SubmissionQueueRing128) index(index uint32) iouring_syscall.SubmissionQueueEntry {
@@ -214,6 +205,81 @@ func (queue *SubmissionQueue) flush() int {
 	return int(tail - *queue.head)
 }
 
+type CompletionQueueRing interface {
+	isActive() bool
+	entrySz() uint32
+	ringSz() uint32
+	assignQueue(ptr uintptr, len int)
+	mappedPtr() uintptr
+	index(index uint32) iouring_syscall.CompletionQueueEvent
+}
+
+type CompletionQueueRing16 struct {
+	queue []iouring_syscall.CompletionQueueEvent16
+}
+
+func (ring *CompletionQueueRing16) isActive() bool {
+	return ring.queue != nil && len(ring.queue) > 0
+}
+
+func (ring *CompletionQueueRing16) entrySz() uint32 {
+	return uint32(unsafe.Sizeof(iouring_syscall.CompletionQueueEvent16{}))
+}
+
+func (ring *CompletionQueueRing16) ringSz() uint32 {
+	return uint32(len(ring.queue)) * ring.entrySz()
+}
+
+func (ring *CompletionQueueRing16) assignQueue(ptr uintptr, len int) {
+	ring.queue = *(*[]iouring_syscall.CompletionQueueEvent16)(
+		unsafe.Pointer(&reflect.SliceHeader{
+			Data: ptr,
+			Len:  len,
+			Cap:  len,
+		}))
+}
+
+func (ring *CompletionQueueRing16) mappedPtr() uintptr {
+	return uintptr(unsafe.Pointer(&ring.queue[0]))
+}
+
+func (ring *CompletionQueueRing16) index(index uint32) iouring_syscall.CompletionQueueEvent {
+	return &ring.queue[index]
+}
+
+type CompletionQueueRing32 struct {
+	queue []iouring_syscall.CompletionQueueEvent32
+}
+
+func (ring *CompletionQueueRing32) isActive() bool {
+	return ring.queue != nil && len(ring.queue) > 0
+}
+
+func (ring *CompletionQueueRing32) entrySz() uint32 {
+	return uint32(unsafe.Sizeof(iouring_syscall.CompletionQueueEvent32{}))
+}
+
+func (ring *CompletionQueueRing32) ringSz() uint32 {
+	return uint32(len(ring.queue)) * ring.entrySz()
+}
+
+func (ring *CompletionQueueRing32) assignQueue(ptr uintptr, len int) {
+	ring.queue = *(*[]iouring_syscall.CompletionQueueEvent32)(
+		unsafe.Pointer(&reflect.SliceHeader{
+			Data: ptr,
+			Len:  len,
+			Cap:  len,
+		}))
+}
+
+func (ring *CompletionQueueRing32) mappedPtr() uintptr {
+	return uintptr(unsafe.Pointer(&ring.queue[0]))
+}
+
+func (ring *CompletionQueueRing32) index(index uint32) iouring_syscall.CompletionQueueEvent {
+	return &ring.queue[index]
+}
+
 type CompletionQueue struct {
 	ptr  uintptr
 	size uint32
@@ -225,14 +291,14 @@ type CompletionQueue struct {
 	flags    *uint32
 	overflow *uint32
 
-	cqes []iouring_syscall.CompletionQueueEvent16
+	cqes CompletionQueueRing
 }
 
 func (queue *CompletionQueue) peek() (cqe iouring_syscall.CompletionQueueEvent) {
 	head := *queue.head
 	if head != atomic.LoadUint32(queue.tail) {
 		//	if head < atomic.LoadUint32(queue.tail) {
-		cqe = &queue.cqes[head&*queue.mask]
+		cqe = queue.cqes.index(head & *queue.mask)
 	}
 	return
 }

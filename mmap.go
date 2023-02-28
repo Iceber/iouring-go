@@ -13,9 +13,7 @@ import (
 	iouring_syscall "github.com/iceber/iouring-go/syscall"
 )
 
-var (
-	uint32Size = uint32(unsafe.Sizeof(uint32(0)))
-)
+const uint32Size = uint32(unsafe.Sizeof(uint32(0)))
 
 func mmapIOURing(iour *IOURing) (err error) {
 	defer func() {
@@ -74,8 +72,9 @@ func mmapCQ(iour *IOURing) (err error) {
 	params := iour.params
 	cq := iour.cq
 
-	// TODO: sungup@me.com - need to change the CQ size to feet the 32B CQ
-	cq.size = params.CQOffset.Cqes + params.CQEntries*uint32Size
+	cqes := CompletionQueueRing(new(CompletionQueueRing16))
+
+	cq.size = params.CQOffset.Cqes + params.CQEntries*cqes.entrySz()
 	if cq.ptr == 0 {
 		cq.ptr, err = mmap(iour.fd, cq.size, iouring_syscall.IORING_OFF_CQ_RING)
 		if err != nil {
@@ -90,13 +89,8 @@ func mmapCQ(iour *IOURing) (err error) {
 	cq.flags = (*uint32)(unsafe.Pointer(cq.ptr + uintptr(params.CQOffset.Flags)))
 	cq.overflow = (*uint32)(unsafe.Pointer(cq.ptr + uintptr(params.CQOffset.Overflow)))
 
-	// TODO: sungup@me.com - need to change the CQ entry type with 32B
-	cq.cqes = *(*[]iouring_syscall.CompletionQueueEvent16)(
-		unsafe.Pointer(&reflect.SliceHeader{
-			Data: cq.ptr + uintptr(params.CQOffset.Cqes),
-			Len:  int(params.CQEntries),
-			Cap:  int(params.CQEntries),
-		}))
+	cqes.assignQueue(cq.ptr+uintptr(params.CQOffset.Cqes), int(params.CQEntries))
+	cq.cqes = cqes
 
 	return nil
 }
@@ -104,7 +98,7 @@ func mmapCQ(iour *IOURing) (err error) {
 func mmapSQEs(iour *IOURing) error {
 	params := iour.params
 
-	sqes := new(SubmissionQueueRing64)
+	sqes := SubmissionQueueRing(new(SubmissionQueueRing64))
 
 	ptr, err := mmap(iour.fd, params.SQEntries*sqes.entrySz(), iouring_syscall.IORING_OFF_SQES)
 	if err != nil {
