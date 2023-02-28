@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 package iouring
@@ -14,7 +15,8 @@ import (
 
 var (
 	uint32Size = uint32(unsafe.Sizeof(uint32(0)))
-	sqeSize    = uint32(unsafe.Sizeof(iouring_syscall.SubmissionQueueEntry{}))
+	// TODO: sungup@me.com - change seqSize to dynamic value
+	sqeSize = uint32(unsafe.Sizeof(iouring_syscall.SubmissionQueueEntry{}))
 )
 
 func mmapIOURing(iour *IOURing) (err error) {
@@ -74,6 +76,7 @@ func mmapCQ(iour *IOURing) (err error) {
 	params := iour.params
 	cq := iour.cq
 
+	// TODO: sungup@me.com - need to change the CQ size to feet the 32B CQ
 	cq.size = params.CQOffset.Cqes + params.CQEntries*uint32Size
 	if cq.ptr == 0 {
 		cq.ptr, err = mmap(iour.fd, cq.size, iouring_syscall.IORING_OFF_CQ_RING)
@@ -89,6 +92,7 @@ func mmapCQ(iour *IOURing) (err error) {
 	cq.flags = (*uint32)(unsafe.Pointer(cq.ptr + uintptr(params.CQOffset.Flags)))
 	cq.overflow = (*uint32)(unsafe.Pointer(cq.ptr + uintptr(params.CQOffset.Overflow)))
 
+	// TODO: sungup@me.com - need to change the CQ entry type with 32B
 	cq.cqes = *(*[]iouring_syscall.CompletionQueueEvent)(
 		unsafe.Pointer(&reflect.SliceHeader{
 			Data: cq.ptr + uintptr(params.CQOffset.Cqes),
@@ -107,6 +111,7 @@ func mmapSQEs(iour *IOURing) error {
 		return fmt.Errorf("mmap sqe array: %w", err)
 	}
 
+	// TODO: sungup@me.com - need to change the SQ entry type with 128B
 	iour.sq.sqes = *(*[]iouring_syscall.SubmissionQueueEntry)(
 		unsafe.Pointer(&reflect.SliceHeader{
 			Data: ptr,
@@ -120,6 +125,7 @@ func mmapSQEs(iour *IOURing) error {
 func munmapIOURing(iour *IOURing) error {
 	if iour.sq != nil && iour.sq.ptr != 0 {
 		if len(iour.sq.sqes) != 0 {
+			// TODO: sungup@me.com - need to change the CQ size to feet the 128B SQE
 			err := munmap(uintptr(unsafe.Pointer(&iour.sq.sqes[0])), uint32(len(iour.sq.sqes))*sqeSize)
 			if err != nil {
 				return fmt.Errorf("ummap sqe array: %w", err)
