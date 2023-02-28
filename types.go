@@ -4,7 +4,9 @@
 package iouring
 
 import (
+	"reflect"
 	"sync/atomic"
+	"unsafe"
 
 	iouring_syscall "github.com/iceber/iouring-go/syscall"
 )
@@ -67,6 +69,90 @@ const (
 
 var _zero uintptr
 
+type SubmissionQueueRing interface {
+	isActive() bool
+	entrySz() uint32
+	ringSz() uint32
+	assignQueue(ptr uintptr, len int)
+	mappedPtr() uintptr
+	resetQueue()
+	index(index uint32) iouring_syscall.SubmissionQueueEntry
+}
+
+type SubmissionQueueRing64 struct {
+	queue []iouring_syscall.SubmissionQueueEntry64
+}
+
+func (ring *SubmissionQueueRing64) isActive() bool {
+	return ring.queue == nil || len(ring.queue) == 0
+}
+
+func (ring *SubmissionQueueRing64) entrySz() uint32 {
+	return uint32(unsafe.Sizeof(iouring_syscall.SubmissionQueueEntry64{}))
+}
+
+func (ring *SubmissionQueueRing64) ringSz() uint32 {
+	return uint32(len(ring.queue)) * ring.entrySz()
+}
+
+func (ring *SubmissionQueueRing64) assignQueue(ptr uintptr, len int) {
+	ring.queue = *(*[]iouring_syscall.SubmissionQueueEntry64)(
+		unsafe.Pointer(&reflect.SliceHeader{
+			Data: ptr,
+			Len:  len,
+			Cap:  len,
+		}))
+}
+
+func (ring *SubmissionQueueRing64) mappedPtr() uintptr {
+	return uintptr(unsafe.Pointer(&ring.queue[0]))
+}
+
+func (ring *SubmissionQueueRing64) resetQueue() {
+	ring.queue = nil
+}
+
+func (ring *SubmissionQueueRing64) index(index uint32) iouring_syscall.SubmissionQueueEntry {
+	return &ring.queue[index]
+}
+
+type SubmissionQueueRing128 struct {
+	queue []iouring_syscall.SubmissionQueueEntry128
+}
+
+func (ring *SubmissionQueueRing128) isActive() bool {
+	return ring.queue != nil && len(ring.queue) > 0
+}
+
+func (ring *SubmissionQueueRing128) entrySz() uint32 {
+	return uint32(unsafe.Sizeof(iouring_syscall.SubmissionQueueEntry128{}))
+}
+
+func (ring *SubmissionQueueRing128) ringSz() uint32 {
+	return uint32(len(ring.queue)) * ring.entrySz()
+}
+
+func (ring *SubmissionQueueRing128) assignQueue(ptr uintptr, len int) {
+	ring.queue = *(*[]iouring_syscall.SubmissionQueueEntry128)(
+		unsafe.Pointer(&reflect.SliceHeader{
+			Data: ptr,
+			Len:  len,
+			Cap:  len,
+		}))
+}
+
+func (ring *SubmissionQueueRing128) mappedPtr() uintptr {
+	return uintptr(unsafe.Pointer(&ring.queue[0]))
+}
+
+func (ring *SubmissionQueueRing128) resetQueue() {
+	ring.queue = nil
+}
+
+func (ring *SubmissionQueueRing128) index(index uint32) iouring_syscall.SubmissionQueueEntry {
+	return &ring.queue[index]
+}
+
 type SubmissionQueue struct {
 	ptr  uintptr
 	size uint32
@@ -79,7 +165,7 @@ type SubmissionQueue struct {
 	dropped *uint32 // incrementd for each invalid submission queue entry encountered in the ring buffer
 
 	array []uint32
-	sqes  []iouring_syscall.SubmissionQueueEntry64 // submission queue ring
+	sqes  SubmissionQueueRing // submission queue ring
 
 	sqeHead uint32
 	sqeTail uint32
@@ -90,7 +176,7 @@ func (queue *SubmissionQueue) getSQEntry() iouring_syscall.SubmissionQueueEntry 
 	next := queue.sqeTail + 1
 
 	if (next - head) <= *queue.entries {
-		sqe := &queue.sqes[queue.sqeTail&*queue.mask]
+		sqe := queue.sqes.index(queue.sqeTail & *queue.mask)
 		queue.sqeTail = next
 		sqe.Reset()
 		return sqe

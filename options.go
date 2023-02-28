@@ -84,7 +84,7 @@ func WithDrain() IOURingOption {
 // WithSQE128 every SQE will have 128B entry size to append IOCTL command
 func WithSQE128() IOURingOption {
 	return func(iour *IOURing) {
-		iour.params.Flags |= iouring_syscall.IORING_SETUP_SEQ128
+		iour.params.Flags |= iouring_syscall.IORING_SETUP_SQE128
 	}
 }
 

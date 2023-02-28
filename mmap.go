@@ -15,8 +15,6 @@ import (
 
 var (
 	uint32Size = uint32(unsafe.Sizeof(uint32(0)))
-	// TODO: sungup@me.com - change seqSize to dynamic value
-	sqeSize = uint32(unsafe.Sizeof(iouring_syscall.SubmissionQueueEntry64{}))
 )
 
 func mmapIOURing(iour *IOURing) (err error) {
@@ -106,27 +104,23 @@ func mmapCQ(iour *IOURing) (err error) {
 func mmapSQEs(iour *IOURing) error {
 	params := iour.params
 
-	ptr, err := mmap(iour.fd, params.SQEntries*sqeSize, iouring_syscall.IORING_OFF_SQES)
+	sqes := new(SubmissionQueueRing64)
+
+	ptr, err := mmap(iour.fd, params.SQEntries*sqes.entrySz(), iouring_syscall.IORING_OFF_SQES)
 	if err != nil {
 		return fmt.Errorf("mmap sqe array: %w", err)
 	}
 
-	// TODO: sungup@me.com - need to change the SQ entry type with 128B
-	iour.sq.sqes = *(*[]iouring_syscall.SubmissionQueueEntry64)(
-		unsafe.Pointer(&reflect.SliceHeader{
-			Data: ptr,
-			Len:  int(params.SQEntries),
-			Cap:  int(params.SQEntries),
-		}))
+	sqes.assignQueue(ptr, int(params.SQEntries))
+	iour.sq.sqes = sqes
 
 	return nil
 }
 
 func munmapIOURing(iour *IOURing) error {
 	if iour.sq != nil && iour.sq.ptr != 0 {
-		if len(iour.sq.sqes) != 0 {
-			// TODO: sungup@me.com - need to change the CQ size to feet the 128B SQE
-			err := munmap(uintptr(unsafe.Pointer(&iour.sq.sqes[0])), uint32(len(iour.sq.sqes))*sqeSize)
+		if iour.sq.sqes.isActive() {
+			err := munmap(iour.sq.sqes.mappedPtr(), iour.sq.sqes.ringSz())
 			if err != nil {
 				return fmt.Errorf("ummap sqe array: %w", err)
 			}
