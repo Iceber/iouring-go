@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 package iouring
@@ -138,7 +139,7 @@ func (iour *IOURing) IsClosed() (closed bool) {
 	return
 }
 
-func (iour *IOURing) getSQEntry() *iouring_syscall.SubmissionQueueEntry {
+func (iour *IOURing) getSQEntry() iouring_syscall.SubmissionQueueEntry {
 	for {
 		sqe := iour.sq.getSQEntry()
 		if sqe != nil {
@@ -148,7 +149,7 @@ func (iour *IOURing) getSQEntry() *iouring_syscall.SubmissionQueueEntry {
 	}
 }
 
-func (iour *IOURing) doRequest(sqe *iouring_syscall.SubmissionQueueEntry, request PrepRequest, ch chan<- Result) (*UserData, error) {
+func (iour *IOURing) doRequest(sqe iouring_syscall.SubmissionQueueEntry, request PrepRequest, ch chan<- Result) (*UserData, error) {
 	userData := makeUserData(iour, ch)
 
 	request(sqe, userData)
@@ -313,14 +314,13 @@ func (iour *IOURing) submitAndWait(waitCount uint32) (submitted int, err error) 
 }
 */
 
-func (iour *IOURing) getCQEvent(wait bool) (cqe *iouring_syscall.CompletionQueueEvent, err error) {
+func (iour *IOURing) getCQEvent(wait bool) (cqe iouring_syscall.CompletionQueueEvent, err error) {
 	var tryPeeks int
 	for {
 		if cqe = iour.cq.peek(); cqe != nil {
 			// Copy CQE.
-			cqe2 := *cqe
+			cqe = cqe.Clone()
 			iour.cq.advance(1)
-			cqe = &cqe2
 			return
 		}
 
@@ -365,13 +365,13 @@ func (iour *IOURing) run() {
 		// log.Println("cqe user data", (cqe.UserData))
 
 		iour.userDataLock.Lock()
-		userData := iour.userDatas[cqe.UserData]
+		userData := iour.userDatas[cqe.UserData()]
 		if userData == nil {
 			iour.userDataLock.Unlock()
-			log.Println("runComplete: notfound user data ", uintptr(cqe.UserData))
+			log.Println("runComplete: notfound user data ", uintptr(cqe.UserData()))
 			continue
 		}
-		delete(iour.userDatas, cqe.UserData)
+		delete(iour.userDatas, cqe.UserData())
 		iour.userDataLock.Unlock()
 
 		userData.request.complate(cqe)
@@ -397,7 +397,7 @@ func (iour *IOURing) submitCancel(id uint64) (Request, error) {
 }
 
 func cancelRequest(id uint64) PrepRequest {
-	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
+	return func(sqe iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		userData.request.resolver = cancelResolver
 		sqe.PrepOperation(iouring_syscall.IORING_OP_ASYNC_CANCEL, -1, id, 0, 0)
 	}

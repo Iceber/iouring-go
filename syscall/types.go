@@ -89,7 +89,24 @@ const IOSQE_SYNC_DATASYNC uint = 1
 const IOSQE_TIMEOUT_ABS uint = 1
 const IOSQE_SPLICE_F_FD_IN_FIXED = 1 << 31
 
-type SubmissionQueueEntry struct {
+type SubmissionQueueEntry interface {
+	Opcode() uint8
+	Reset()
+	PrepOperation(op uint8, fd int32, addrOrSpliceOffIn uint64, len uint32, offsetOrCmdOp uint64)
+	Fd() int32
+	SetFdIndex(index int32)
+	SetOpFlags(opflags uint32)
+	SetUserData(userData uint64)
+	SetFlags(flag uint8)
+	CleanFlags(flags uint8)
+	SetIoprio(ioprio uint16)
+	SetBufIndex(bufIndex uint16)
+	SetBufGroup(bufGroup uint16)
+	SetPersonality(personality uint16)
+	SetSpliceFdIn(fdIn int32)
+}
+
+type SQECore struct {
 	opcode   uint8
 	flags    uint8
 	ioprio   uint16
@@ -106,71 +123,100 @@ type SubmissionQueueEntry struct {
 	extra           [2]uint64
 }
 
-func (sqe *SubmissionQueueEntry) Opcode() uint8 {
+func (sqe *SQECore) Opcode() uint8 {
 	return sqe.opcode
 }
 
-func (sqe *SubmissionQueueEntry) Reset() {
-	*sqe = SubmissionQueueEntry{}
+func (sqe *SQECore) Reset() {
+	*sqe = SQECore{}
 }
 
-func (sqe *SubmissionQueueEntry) PrepOperation(op uint8, fd int32, addrOrSpliceOffIn uint64, len uint32, offset uint64) {
+func (sqe *SQECore) PrepOperation(op uint8, fd int32, addrOrSpliceOffIn uint64, len uint32, offsetOrCmdOp uint64) {
 	sqe.opcode = op
 	sqe.fd = fd
 	sqe.addr = addrOrSpliceOffIn
 	sqe.len = len
-	sqe.offset = offset
+	sqe.offset = offsetOrCmdOp
 }
 
-func (sqe *SubmissionQueueEntry) Fd() int32 {
+func (sqe *SQECore) Fd() int32 {
 	return sqe.fd
 }
 
-func (sqe *SubmissionQueueEntry) SetFdIndex(index int32) {
+func (sqe *SQECore) SetFdIndex(index int32) {
 	sqe.fd = index
 	sqe.flags |= IOSQE_FLAGS_FIXED_FILE
 }
 
-func (sqe *SubmissionQueueEntry) SetOpFlags(opflags uint32) {
+func (sqe *SQECore) SetOpFlags(opflags uint32) {
 	sqe.opFlags = opflags
 }
 
-func (sqe *SubmissionQueueEntry) SetUserData(userData uint64) {
+func (sqe *SQECore) SetUserData(userData uint64) {
 	sqe.userdata = userData
 }
 
-func (sqe *SubmissionQueueEntry) SetFlags(flags uint8) {
+func (sqe *SQECore) SetFlags(flags uint8) {
 	sqe.flags |= flags
 }
 
-func (sqe *SubmissionQueueEntry) CleanFlags(flags uint8) {
+func (sqe *SQECore) CleanFlags(flags uint8) {
 	sqe.flags ^= flags
 }
 
-func (sqe *SubmissionQueueEntry) SetIoprio(ioprio uint16) {
+func (sqe *SQECore) SetIoprio(ioprio uint16) {
 	sqe.ioprio = ioprio
 }
 
-func (sqe *SubmissionQueueEntry) SetBufIndex(bufIndex uint16) {
+func (sqe *SQECore) SetBufIndex(bufIndex uint16) {
 	sqe.bufIndexOrGroup = bufIndex
 }
 
-func (sqe *SubmissionQueueEntry) SetBufGroup(bufGroup uint16) {
+func (sqe *SQECore) SetBufGroup(bufGroup uint16) {
 	sqe.bufIndexOrGroup = bufGroup
 }
 
-func (sqe *SubmissionQueueEntry) SetPeronality(personality uint16) {
+func (sqe *SQECore) SetPersonality(personality uint16) {
 	sqe.personality = personality
 }
 
-func (sqe *SubmissionQueueEntry) SetSpliceFdIn(fdIn int32) {
+func (sqe *SQECore) SetSpliceFdIn(fdIn int32) {
 	sqe.spliceFdIn = fdIn
 }
 
-type CompletionQueueEvent struct {
-	UserData uint64
-	Result   int32
-	Flags    uint32
+type CompletionQueueEvent interface {
+	UserData() uint64
+	Result() int32
+	Flags() uint32
+	Clone() CompletionQueueEvent
+}
+
+type CQECore struct {
+	userData uint64
+	result   int32
+	flags    uint32
+}
+
+func (cqe *CQECore) copyTo(dest *CQECore) {
+	*dest = *cqe
+}
+
+func (cqe *CQECore) UserData() uint64 {
+	return cqe.userData
+}
+
+func (cqe *CQECore) Result() int32 {
+	return cqe.result
+}
+
+func (cqe *CQECore) Flags() uint32 {
+	return cqe.flags
+}
+
+func (cqe *CQECore) Clone() CompletionQueueEvent {
+	dest := &CQECore{}
+	cqe.copyTo(dest)
+	return dest
 }
 
 const IORING_FSYNC_DATASYNC uint32 = 1

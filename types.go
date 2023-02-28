@@ -79,13 +79,13 @@ type SubmissionQueue struct {
 	dropped *uint32 // incrementd for each invalid submission queue entry encountered in the ring buffer
 
 	array []uint32
-	sqes  []iouring_syscall.SubmissionQueueEntry // submission queue ring
+	sqes  []iouring_syscall.SQECore // submission queue ring
 
 	sqeHead uint32
 	sqeTail uint32
 }
 
-func (queue *SubmissionQueue) getSQEntry() *iouring_syscall.SubmissionQueueEntry {
+func (queue *SubmissionQueue) getSQEntry() iouring_syscall.SubmissionQueueEntry {
 	head := atomic.LoadUint32(queue.head)
 	next := queue.sqeTail + 1
 
@@ -139,10 +139,10 @@ type CompletionQueue struct {
 	flags    *uint32
 	overflow *uint32
 
-	cqes []iouring_syscall.CompletionQueueEvent
+	cqes []iouring_syscall.CQECore
 }
 
-func (queue *CompletionQueue) peek() (cqe *iouring_syscall.CompletionQueueEvent) {
+func (queue *CompletionQueue) peek() (cqe iouring_syscall.CompletionQueueEvent) {
 	head := *queue.head
 	if head != atomic.LoadUint32(queue.tail) {
 		//	if head < atomic.LoadUint32(queue.tail) {

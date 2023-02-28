@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 package iouring
@@ -93,8 +94,8 @@ func (req *request) resolve() {
 	})
 }
 
-func (req *request) complate(cqe *iouring_syscall.CompletionQueueEvent) {
-	req.res = cqe.Result
+func (req *request) complate(cqe iouring_syscall.CompletionQueueEvent) {
+	req.res = cqe.Result()
 	req.iour = nil
 	close(req.done)
 
