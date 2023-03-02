@@ -72,12 +72,22 @@ func PrepNVMeIdCtrl(fd int, b []byte) iouring.PrepRequest {
 	)
 
 	return func(sqe iouring_syscall.SubmissionQueueEntry, userData *iouring.UserData) {
+		userData.SetRequestInfo(b)
+		userData.SetRequestCallback(func(result iouring.Result) error {
+			if err := result.Err(); err != nil {
+				fmt.Printf("nvme admin passthru failed: %v", err)
+			}
+
+			buf := result.GetRequestInfo().([]byte)
+			fmt.Printf("VID: %x%x\n", buf[1], buf[0])
+			fmt.Printf("Controller Model Number: %s\n", buf[4:44])
+
+			return nil
+		})
+
 		// nvme command passthru will not use the user data pointer because nvme driver uses
 		// nvme command structure same with IOCtl, at the last 80byte of SQE128 entry, and
 		// also use the data pointer and length field in the NVMe command structure.
-
-		// TODO how to open resolver???
-
 		sqe.PrepOperation(
 			iouring_syscall.IORING_OP_URING_CMD,
 			int32(fd),
@@ -97,9 +107,6 @@ func PrepNVMeIdCtrl(fd int, b []byte) iouring.PrepRequest {
 }
 
 func main() {
-	now := time.Now()
-	buffer := make([]byte, 4096)
-
 	if len(os.Args) != 2 {
 		fmt.Printf("Usage: %s nvme_chr_device\n", os.Args[0])
 		return
@@ -120,21 +127,20 @@ func main() {
 	}
 	defer func() { _ = dev.Close() }()
 
-	ch := make(chan iouring.Result, entries)
-	prepRequest := PrepNVMeIdCtrl(int(dev.Fd()), buffer)
+	ch := make(chan iouring.Result)
+	prepRequest := PrepNVMeIdCtrl(int(dev.Fd()), make([]byte, 4096))
+
+	now := time.Now()
 	if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
 		fmt.Printf("request error: %v\n", err)
 		return
 	}
 
-	result := <-ch
-	if err = result.Err(); err != nil {
-		fmt.Printf("nvme admin passthru failed: %v\n", err)
-		return
+	fmt.Printf("waiting response callback\n")
+
+	select {
+	case result := <-ch:
+		_ = result.Callback()
+		fmt.Printf("nvme id-ctrl successful: %v\n", time.Now().Sub(now))
 	}
-
-	fmt.Printf("VID: %x%x\n", buffer[1], buffer[0])
-	fmt.Printf("Controller Model Number: %s\n", buffer[4:44])
-
-	fmt.Printf("nvme id-ctrl successful: %v\n", time.Now().Sub(now))
 }
