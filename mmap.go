@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 package iouring
@@ -12,10 +13,7 @@ import (
 	iouring_syscall "github.com/iceber/iouring-go/syscall"
 )
 
-var (
-	uint32Size = uint32(unsafe.Sizeof(uint32(0)))
-	sqeSize    = uint32(unsafe.Sizeof(iouring_syscall.SubmissionQueueEntry{}))
-)
+const uint32Size = uint32(unsafe.Sizeof(uint32(0)))
 
 func mmapIOURing(iour *IOURing) (err error) {
 	defer func() {
@@ -74,7 +72,9 @@ func mmapCQ(iour *IOURing) (err error) {
 	params := iour.params
 	cq := iour.cq
 
-	cq.size = params.CQOffset.Cqes + params.CQEntries*uint32Size
+	cqes := makeCompletionQueueRing(params.Flags)
+
+	cq.size = params.CQOffset.Cqes + params.CQEntries*cqes.entrySz()
 	if cq.ptr == 0 {
 		cq.ptr, err = mmap(iour.fd, cq.size, iouring_syscall.IORING_OFF_CQ_RING)
 		if err != nil {
@@ -89,12 +89,8 @@ func mmapCQ(iour *IOURing) (err error) {
 	cq.flags = (*uint32)(unsafe.Pointer(cq.ptr + uintptr(params.CQOffset.Flags)))
 	cq.overflow = (*uint32)(unsafe.Pointer(cq.ptr + uintptr(params.CQOffset.Overflow)))
 
-	cq.cqes = *(*[]iouring_syscall.CompletionQueueEvent)(
-		unsafe.Pointer(&reflect.SliceHeader{
-			Data: cq.ptr + uintptr(params.CQOffset.Cqes),
-			Len:  int(params.CQEntries),
-			Cap:  int(params.CQEntries),
-		}))
+	cqes.assignQueue(cq.ptr+uintptr(params.CQOffset.Cqes), int(params.CQEntries))
+	cq.cqes = cqes
 
 	return nil
 }
@@ -102,25 +98,23 @@ func mmapCQ(iour *IOURing) (err error) {
 func mmapSQEs(iour *IOURing) error {
 	params := iour.params
 
-	ptr, err := mmap(iour.fd, params.SQEntries*sqeSize, iouring_syscall.IORING_OFF_SQES)
+	sqes := makeSubmissionQueueRing(params.Flags)
+
+	ptr, err := mmap(iour.fd, params.SQEntries*sqes.entrySz(), iouring_syscall.IORING_OFF_SQES)
 	if err != nil {
 		return fmt.Errorf("mmap sqe array: %w", err)
 	}
 
-	iour.sq.sqes = *(*[]iouring_syscall.SubmissionQueueEntry)(
-		unsafe.Pointer(&reflect.SliceHeader{
-			Data: ptr,
-			Len:  int(params.SQEntries),
-			Cap:  int(params.SQEntries),
-		}))
+	sqes.assignQueue(ptr, int(params.SQEntries))
+	iour.sq.sqes = sqes
 
 	return nil
 }
 
 func munmapIOURing(iour *IOURing) error {
 	if iour.sq != nil && iour.sq.ptr != 0 {
-		if len(iour.sq.sqes) != 0 {
-			err := munmap(uintptr(unsafe.Pointer(&iour.sq.sqes[0])), uint32(len(iour.sq.sqes))*sqeSize)
+		if iour.sq.sqes.isActive() {
+			err := munmap(iour.sq.sqes.mappedPtr(), iour.sq.sqes.ringSz())
 			if err != nil {
 				return fmt.Errorf("ummap sqe array: %w", err)
 			}

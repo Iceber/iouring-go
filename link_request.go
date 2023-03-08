@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 package iouring
@@ -84,7 +85,7 @@ func (iour *IOURing) submitLinkRequest(requests []PrepRequest, ch chan<- Result,
 func linkTimeout(t time.Duration) PrepRequest {
 	timespec := unix.NsecToTimespec(t.Nanoseconds())
 
-	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
+	return func(sqe iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		userData.hold(&timespec)
 		userData.request.resolver = timeoutResolver
 

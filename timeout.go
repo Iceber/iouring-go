@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 package iouring
@@ -12,7 +13,7 @@ import (
 )
 
 func (prepReq PrepRequest) WithTimeout(timeout time.Duration) []PrepRequest {
-	linkRequest := func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
+	linkRequest := func(sqe iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		prepReq(sqe, userData)
 		sqe.SetFlags(iouring_syscall.IOSQE_FLAGS_IO_LINK)
 	}
@@ -22,7 +23,7 @@ func (prepReq PrepRequest) WithTimeout(timeout time.Duration) []PrepRequest {
 func Timeout(t time.Duration) PrepRequest {
 	timespec := unix.NsecToTimespec(t.Nanoseconds())
 
-	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
+	return func(sqe iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		userData.hold(&timespec)
 		userData.request.resolver = timeoutResolver
 
@@ -36,7 +37,7 @@ func TimeoutWithTime(t time.Time) (PrepRequest, error) {
 		return nil, err
 	}
 
-	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
+	return func(sqe iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		userData.hold(&timespec)
 		userData.request.resolver = timeoutResolver
 
@@ -46,7 +47,7 @@ func TimeoutWithTime(t time.Time) (PrepRequest, error) {
 }
 
 func CountCompletionEvent(n uint64) PrepRequest {
-	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
+	return func(sqe iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		userData.request.resolver = timeoutResolver
 
 		sqe.PrepOperation(iouring_syscall.IORING_OP_TIMEOUT, -1, 0, 0, n)
@@ -54,7 +55,7 @@ func CountCompletionEvent(n uint64) PrepRequest {
 }
 
 func RemoveTimeout(id uint64) PrepRequest {
-	return func(sqe *iouring_syscall.SubmissionQueueEntry, userData *UserData) {
+	return func(sqe iouring_syscall.SubmissionQueueEntry, userData *UserData) {
 		userData.request.resolver = removeTimeoutResolver
 
 		sqe.PrepOperation(iouring_syscall.IORING_OP_TIMEOUT, -1, id, 0, 0)

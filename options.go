@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 package iouring
@@ -77,5 +78,19 @@ func WithDisableRing() IOURingOption {
 func WithDrain() IOURingOption {
 	return func(iour *IOURing) {
 		iour.drain = true
+	}
+}
+
+// WithSQE128 every SQE will have 128B entry size to append IOCTL command
+func WithSQE128() IOURingOption {
+	return func(iour *IOURing) {
+		iour.params.Flags |= iouring_syscall.IORING_SETUP_SQE128
+	}
+}
+
+// WithCQE32 every CQE will have 32B entry size to append IOCTL return data
+func WithCQE32() IOURingOption {
+	return func(iour *IOURing) {
+		iour.params.Flags |= iouring_syscall.IORING_SETUP_CQE32
 	}
 }
