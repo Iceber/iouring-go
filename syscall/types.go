@@ -218,6 +218,8 @@ func (sqe *SubmissionQueueEntry128) CMD(castType interface{}) interface{} {
 type CompletionQueueEvent interface {
 	UserData() uint64
 	Result() int32
+	Extra1() uint64
+	Extra2() uint64
 	Flags() uint32
 	Clone() CompletionQueueEvent
 }
@@ -226,10 +228,6 @@ type cqeCore struct {
 	userData uint64
 	result   int32
 	flags    uint32
-}
-
-func (cqe *cqeCore) copyTo(dest *cqeCore) {
-	*dest = *cqe
 }
 
 func (cqe *cqeCore) UserData() uint64 {
@@ -244,20 +242,43 @@ func (cqe *cqeCore) Flags() uint32 {
 	return cqe.flags
 }
 
-func (cqe *cqeCore) Clone() CompletionQueueEvent {
-	dest := &cqeCore{}
-	cqe.copyTo(dest)
-	return dest
-}
-
 type CompletionQueueEvent16 struct {
 	cqeCore
+}
+
+func (cqe *CompletionQueueEvent16) Extra1() uint64 {
+	return 0
+}
+
+func (cqe *CompletionQueueEvent16) Extra2() uint64 {
+	return 0
+}
+
+func (cqe *CompletionQueueEvent16) Clone() CompletionQueueEvent {
+	dest := &CompletionQueueEvent16{}
+	*dest = *cqe
+	return dest
 }
 
 type CompletionQueueEvent32 struct {
 	cqeCore
 
-	data [16]uint8
+	extra1 uint64
+	extra2 uint64
+}
+
+func (cqe *CompletionQueueEvent32) Extra1() uint64 {
+	return cqe.extra1
+}
+
+func (cqe *CompletionQueueEvent32) Extra2() uint64 {
+	return cqe.extra2
+}
+
+func (cqe *CompletionQueueEvent32) Clone() CompletionQueueEvent {
+	dest := &CompletionQueueEvent32{}
+	*dest = *cqe
+	return dest
 }
 
 const IORING_FSYNC_DATASYNC uint32 = 1

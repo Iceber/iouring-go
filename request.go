@@ -38,6 +38,8 @@ type Result interface {
 	Err() error
 	ReturnValue0() interface{}
 	ReturnValue1() interface{}
+	ReturnExtra1() uint64
+	ReturnExtra2() uint64
 	ReturnFd() (int, error)
 	ReturnInt() (int, error)
 
@@ -64,9 +66,11 @@ type request struct {
 	b1 []byte
 	bs [][]byte
 
-	err error
-	r0  interface{}
-	r1  interface{}
+	err  error
+	r0   interface{}
+	r1   interface{}
+	ext1 uint64
+	ext2 uint64
 
 	requestInfo interface{}
 
@@ -96,6 +100,8 @@ func (req *request) resolve() {
 
 func (req *request) complate(cqe iouring_syscall.CompletionQueueEvent) {
 	req.res = cqe.Result()
+	req.ext1 = cqe.Extra1()
+	req.ext2 = cqe.Extra2()
 	req.iour = nil
 	close(req.done)
 
@@ -172,6 +178,14 @@ func (req *request) ReturnValue0() interface{} {
 func (req *request) ReturnValue1() interface{} {
 	req.resolve()
 	return req.r1
+}
+
+func (req *request) ReturnExtra1() uint64 {
+	return req.ext1
+}
+
+func (req *request) ReturnExtra2() uint64 {
+	return req.ext2
 }
 
 func (req *request) ReturnFd() (int, error) {
