@@ -101,6 +101,7 @@ func (iour *IOURing) Close() error {
 
 	select {
 	case <-iour.closer:
+		return nil
 	default:
 		close(iour.closer)
 	}
